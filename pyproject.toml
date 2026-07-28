@@ -42,6 +42,8 @@ archiscope = "archiscope.cli:main"
 Homepage = "https://github.com/BladeDancer743/archiscope"
 Repository = "https://github.com/BladeDancer743/archiscope.git"
 Issues = "https://github.com/BladeDancer743/archiscope/issues"
+Documentation = "https://github.com/BladeDancer743/archiscope/tree/master/docs"
+Changelog = "https://github.com/BladeDancer743/archiscope/blob/master/CHANGELOG.md"
 
 [build-system]
 requires = ["setuptools>=77"]

@@ -1,0 +1,79 @@
+name: Bug report
+description: Report a reproducible rendering, validation, installation, or CLI problem.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please remove private project names, paths, topology, and credentials from every example.
+
+  - type: input
+    id: version
+    attributes:
+      label: Archiscope version
+      description: Output of `archiscope --version`.
+      placeholder: archiscope 0.5.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - CLI
+        - YAML validation
+        - Default Mermaid renderer
+        - Terminal strategy
+        - Geometry verification/correction
+        - Agent installation
+        - Packaging or installation
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Environment
+      description: Operating system, Python version, terminal, and Agent if relevant.
+      placeholder: Windows 11, Python 3.12, Windows Terminal, Codex
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Provide the command and a fictional, minimized YAML sample.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include complete text output or traceback when possible.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I ran `archiscope validate` when the issue involves YAML or rendering.
+          required: true
+        - label: I removed private names, paths, credentials, and proprietary topology.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true

@@ -1,0 +1,62 @@
+name: Feature request
+description: Propose a new architectural question, renderer capability, or Agent workflow.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Strong feature requests begin with the architectural question a user cannot answer today.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to understand or accomplish?
+      placeholder: During review, I need to see…
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description: Show the command or Agent conversation you would like to use.
+      placeholder: |
+        User: Expand the failure path for demo.pipeline
+        Archiscope: …
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Feature area
+      options:
+        - Existing renderer
+        - New renderer
+        - Schema
+        - Validation or correction
+        - Agent integration
+        - CLI
+        - Documentation
+        - Packaging or release
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Which existing strategy or workflow comes closest, and why is it insufficient?
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I reviewed the existing 16 strategies and the strategy gallery.
+          required: true
+        - label: Any included architecture data is fictional and sanitized.
+          required: true
