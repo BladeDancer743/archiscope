@@ -1,0 +1,283 @@
+schema: "archiscope/1.0"
+
+aliases:
+  示例系统: root
+  接入服务: demo.gateway
+  处理流水线: demo.pipeline
+  校验模块: demo.pipeline.validator
+
+modules:
+  root:
+    label: "Demo Event Platform"
+    description: "Fictional multi-service system used only for Archiscope examples"
+    type: root
+    children: [demo.gateway, demo.pipeline, demo.report, demo.archive, demo.scheduler, demo.storage]
+
+  # ── Gateway: receives events through generic transports ──
+  demo.gateway:
+    label: "Gateway 接入服务"
+    description: "Receives sample events from generic transport adapters"
+    type: engine
+    parent: root
+    upstream: [demo.scheduler]
+    downstream: [demo.pipeline]
+    children: [demo.gateway.adapters]
+    files: [src/demo/gateway/service.py]
+
+  demo.gateway.adapters:
+    label: "Adapters 适配层"
+    description: "Normalizes HTTP, queue, file, and webhook inputs"
+    type: layer
+    parent: demo.gateway
+    downstream: [demo.pipeline.receiver]
+    children:
+      - demo.gateway.adapters.http
+      - demo.gateway.adapters.queue
+      - demo.gateway.adapters.file
+      - demo.gateway.adapters.webhook
+    files: [src/demo/gateway/adapters/]
+
+  demo.gateway.adapters.http:
+    label: "HTTP 适配器"
+    description: "Converts generic HTTP requests into demo events"
+    type: module
+    parent: demo.gateway.adapters
+    downstream: [demo.pipeline.receiver]
+    files: [src/demo/gateway/adapters/http.py]
+
+  demo.gateway.adapters.queue:
+    label: "Queue 适配器"
+    description: "Consumes events from a sample message queue"
+    type: module
+    parent: demo.gateway.adapters
+    files: [src/demo/gateway/adapters/queue.py]
+
+  demo.gateway.adapters.file:
+    label: "File 适配器"
+    description: "Loads events from local fixture files"
+    type: module
+    parent: demo.gateway.adapters
+    files: [src/demo/gateway/adapters/file.py]
+
+  demo.gateway.adapters.webhook:
+    label: "Webhook 适配器"
+    description: "Accepts generic webhook payloads"
+    type: module
+    parent: demo.gateway.adapters
+    files: [src/demo/gateway/adapters/webhook.py]
+
+  # ── Pipeline: validates and transforms demo events ──
+  demo.pipeline:
+    label: "事件处理流水线"
+    description: "Receive → validate → deduplicate → enqueue"
+    type: layer
+    parent: root
+    upstream: [demo.gateway]
+    downstream: [demo.report, demo.archive]
+    children:
+      - demo.pipeline.receiver
+      - demo.pipeline.validator
+      - demo.pipeline.throttle
+      - demo.pipeline.accepted_queue
+      - demo.pipeline.deduplicator
+      - demo.pipeline.healthcheck
+      - demo.pipeline.router
+      - demo.pipeline.webhook
+    files: [src/demo/pipeline/]
+    groups:
+      control:
+        label: "Control"
+        modules: [demo.pipeline.throttle, demo.pipeline.router]
+      core:
+        label: "Core"
+        modules: [demo.pipeline.receiver]
+      process:
+        label: "Process"
+        modules: [demo.pipeline.validator, demo.pipeline.deduplicator, demo.pipeline.accepted_queue]
+    edges:
+      - from: demo.pipeline.receiver
+        to: demo.pipeline.validator
+        label: "event"
+
+  demo.pipeline.receiver:
+    label: "事件接收"
+    description: "Builds a normalized event envelope with retry metadata"
+    type: module
+    parent: demo.pipeline
+    upstream: [demo.gateway.adapters, demo.gateway.adapters.http,
+               demo.pipeline.router, demo.pipeline.throttle]
+    downstream: [demo.pipeline.validator, demo.pipeline.deduplicator]
+    files: [src/demo/pipeline/receiver.py]
+
+  demo.pipeline.validator:
+    label: "结构校验"
+    description: "Checks required fields, size limits, and schema compatibility"
+    type: module
+    parent: demo.pipeline
+    upstream: [demo.pipeline.receiver]
+    downstream: [demo.pipeline.accepted_queue]
+    files: [src/demo/pipeline/validator.py]
+
+  demo.pipeline.throttle:
+    label: "速率限制"
+    description: "Applies a token-bucket limit to the fictional input stream"
+    type: module
+    parent: demo.pipeline
+    downstream: [demo.pipeline.receiver]
+    files: [src/demo/pipeline/throttle.py]
+
+  demo.pipeline.accepted_queue:
+    label: "待处理队列"
+    description: "Buffers validated demo events before report generation"
+    type: module
+    parent: demo.pipeline
+    upstream: [demo.pipeline.validator]
+    files: [src/demo/pipeline/accepted_queue.py]
+
+  demo.pipeline.deduplicator:
+    label: "事件去重"
+    description: "Drops duplicate fixture events by deterministic content hash"
+    type: module
+    parent: demo.pipeline
+    upstream: [demo.pipeline.receiver]
+    files: [src/demo/pipeline/deduplicator.py]
+
+  demo.pipeline.healthcheck:
+    label: "健康检查"
+    description: "Runs a local readiness check for the sample pipeline"
+    type: module
+    parent: demo.pipeline
+    files: [src/demo/pipeline/healthcheck.py]
+
+  demo.pipeline.router:
+    label: "事件路由"
+    description: "Chooses a fictional processing route from event metadata"
+    type: module
+    parent: demo.pipeline
+    downstream: [demo.pipeline.receiver]
+    files: [src/demo/pipeline/router.py]
+
+  demo.pipeline.webhook:
+    label: "通知出口"
+    description: "Emits sample completion notifications"
+    type: module
+    parent: demo.pipeline
+    files: [src/demo/pipeline/webhook.py]
+
+  # ── Report: demonstrates nested layers and timing strategies ──
+  demo.report:
+    label: "Report 报表服务"
+    description: "Transforms validated demo events into aggregate reports"
+    type: engine
+    parent: root
+    upstream: [demo.pipeline]
+    downstream: [demo.storage]
+    children: [demo.report.pipeline, demo.report.metrics]
+    files: [src/demo/report/service.py]
+
+  demo.report.pipeline:
+    label: "报表流水线"
+    description: "Normalize → extract → classify → aggregate → verify"
+    type: layer
+    parent: demo.report
+    upstream: [demo.pipeline]
+    children:
+      - demo.report.pipeline.normalize
+      - demo.report.pipeline.extract
+      - demo.report.pipeline.classify
+      - demo.report.pipeline.aggregate
+      - demo.report.pipeline.verify
+    files: [src/demo/report/pipeline/]
+    internal_flow:
+      - step: "Normalize"
+        from: raw_event
+        to: normalized_event
+        duration_ms: 8
+      - step: "Aggregate"
+        from: normalized_event
+        to: report
+        duration_ms: 15
+      - step: "Verify"
+        from: report
+        to: done
+        duration_ms: 5
+
+  demo.report.pipeline.normalize:
+    label: "Normalize 标准化"
+    description: "Normalizes field names in fixture data"
+    type: module
+    parent: demo.report.pipeline
+    downstream: [demo.report.pipeline.extract]
+    files: [src/demo/report/pipeline/normalize.py]
+
+  demo.report.pipeline.extract:
+    label: "Extract 字段提取"
+    description: "Extracts generic category, timestamp, and value fields"
+    type: module
+    parent: demo.report.pipeline
+    upstream: [demo.report.pipeline.normalize]
+    downstream: [demo.report.pipeline.classify]
+    files: [src/demo/report/pipeline/extract.py]
+
+  demo.report.pipeline.classify:
+    label: "Classify 规则分类"
+    description: "Classifies fixtures with deterministic local rules"
+    type: module
+    parent: demo.report.pipeline
+    upstream: [demo.report.pipeline.extract]
+    downstream: [demo.report.pipeline.aggregate]
+    files: [src/demo/report/pipeline/classify.py]
+
+  demo.report.pipeline.aggregate:
+    label: "Aggregate 聚合"
+    description: "Aggregates fixture values by category and time window"
+    type: module
+    parent: demo.report.pipeline
+    upstream: [demo.report.pipeline.classify]
+    downstream: [demo.report.pipeline.verify]
+    files: [src/demo/report/pipeline/aggregate.py]
+
+  demo.report.pipeline.verify:
+    label: "Verify 结果校验"
+    description: "Checks report totals and required output fields"
+    type: module
+    parent: demo.report.pipeline
+    upstream: [demo.report.pipeline.aggregate]
+    files: [src/demo/report/pipeline/verify.py]
+
+  demo.report.metrics:
+    label: "Metrics 指标库"
+    description: "Small collection of deterministic sample metrics"
+    type: layer
+    parent: demo.report
+    children: []
+    files: [src/demo/report/metrics/]
+
+  # ── Supporting fictional services ──
+  demo.scheduler:
+    label: "Scheduler 调度服务"
+    description: "Creates periodic demo jobs"
+    type: engine
+    parent: root
+    downstream: [demo.gateway]
+    children: []
+    files: [src/demo/scheduler/service.py]
+
+  demo.archive:
+    label: "Archive 归档服务"
+    description: "Stores immutable copies of sample events"
+    type: engine
+    parent: root
+    upstream: [demo.pipeline]
+    downstream: [demo.storage]
+    children: []
+    files: [src/demo/archive/service.py]
+
+  demo.storage:
+    label: "Storage 数据服务"
+    description: "Persists fictional reports and archived fixtures"
+    type: engine
+    parent: root
+    upstream: [demo.report, demo.archive]
+    children: []
+    files: [src/demo/storage/service.py]

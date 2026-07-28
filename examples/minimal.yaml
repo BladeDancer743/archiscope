@@ -1,0 +1,73 @@
+schema: "archiscope/1.0"
+
+aliases:
+  引擎一: engine_a
+  管线: engine_a.pipeline
+
+modules:
+  root:
+    label: "My Project"
+    type: root
+    children: [engine_a, engine_b]
+
+  engine_a:
+    label: "Engine A"
+    description: "Handles all incoming data"
+    type: engine
+    parent: root
+    downstream: [engine_b]
+    children: [engine_a.api, engine_a.pipeline]
+    files: [engines/a/engine.py]
+
+  engine_a.api:
+    label: "API Layer"
+    type: layer
+    parent: engine_a
+    downstream: [engine_a.pipeline]
+    children: [engine_a.api.handler]
+    files: [engines/a/api/]
+
+  engine_a.api.handler:
+    label: "Request Handler"
+    description: "Accepts HTTP requests and validates input"
+    type: module
+    parent: engine_a.api
+    upstream: []
+    downstream: [engine_a.pipeline]
+    files: [engines/a/api/handler.py]
+
+  engine_a.pipeline:
+    label: "Processing Pipeline"
+    type: layer
+    parent: engine_a
+    upstream: [engine_a.api]
+    downstream: [engine_b]
+    children: [engine_a.pipeline.step1, engine_a.pipeline.step2]
+    files: [engines/a/pipeline/]
+
+  engine_a.pipeline.step1:
+    label: "Step 1: Parse"
+    description: "Parses raw input into structured form"
+    type: module
+    parent: engine_a.pipeline
+    upstream: [engine_a.api]
+    downstream: [engine_a.pipeline.step2]
+    files: [engines/a/pipeline/step1.py]
+
+  engine_a.pipeline.step2:
+    label: "Step 2: Transform"
+    description: "Applies business logic transformation"
+    type: module
+    parent: engine_a.pipeline
+    upstream: [engine_a.pipeline.step1]
+    downstream: [engine_b]
+    files: [engines/a/pipeline/step2.py]
+
+  engine_b:
+    label: "Engine B"
+    description: "Consumes processed data for storage"
+    type: engine
+    parent: root
+    upstream: [engine_a]
+    children: []
+    files: [engines/b/engine.py]

@@ -1,0 +1,22 @@
+[project]
+name = "archiscope"
+version = "0.5.0"
+description = "Portable architecture zoom lens for AI coding agents"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["pyyaml"]
+
+[project.scripts]
+archiscope = "src.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/BladeDancer743/archiscope"
+Repository = "https://github.com/BladeDancer743/archiscope.git"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
