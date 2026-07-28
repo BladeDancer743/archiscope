@@ -1,6 +1,8 @@
 # Archiscope · 开发架构放大镜
 
-[English](#quick-start) | [安装](#安装) | [视图一览](#可用视图-16-种) | [字段说明](#archmapyaml-字段说明)
+[![CI](https://github.com/BladeDancer743/archiscope/actions/workflows/ci.yml/badge.svg)](https://github.com/BladeDancer743/archiscope/actions/workflows/ci.yml)
+
+[快速上手](#快速上手) | [安装](#安装) | [视图一览](#可用视图-16-种) | [字段说明](#archmapyaml-字段说明)
 
 **给 AI 编码 Agent 用的便携式架构可视化工具。** 输入模块路径，默认输出聚焦的 Mermaid 架构图，也可切换 16 种终端文本视图。一个 YAML 文件描述架构，任何项目、任何 Agent 即插即用。
 
@@ -208,13 +210,18 @@ modules:
 
 ## 开发验收
 
-项目使用 Python 标准库测试框架，不需要额外测试依赖：
+安装开发工具后运行完整质量门禁：
 
 ```bash
+python -m pip install -e ".[dev]"
+ruff format --check src tests
+ruff check src tests
+mypy
 python -m unittest discover -s tests -v
+python -m build
 ```
 
-发布前同时运行 `archiscope validate`，并对 `archiscope list-strategies` 列出的全部策略执行一次 smoke test。
+CI 会在 Linux、macOS 和 Windows 的 Python 3.10–3.14 上运行测试，并验证源码格式、静态类型和 wheel 构建。发布前还需运行 `archiscope validate`，并对 `archiscope list-strategies` 列出的全部策略执行一次 smoke test。
 
 ---
 

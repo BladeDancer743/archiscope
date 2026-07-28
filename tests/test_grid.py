@@ -1,6 +1,6 @@
 import unittest
 
-from src.render.geometry.draw.grid import CharGrid, pad_str, str_width
+from archiscope.render.geometry.draw.grid import CharGrid, pad_str, str_width
 
 
 class GridTests(unittest.TestCase):

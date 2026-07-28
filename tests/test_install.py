@@ -3,15 +3,15 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.cli import _install_agent
-from src.install import RULE_CONTENT, SKILL_CONTENT
+from archiscope.cli import _install_agent
+from archiscope.install import RULE_CONTENT, SKILL_CONTENT
 
 
 class InstallTests(unittest.TestCase):
     def test_skill_install_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with patch("src.install.find_project", return_value=root):
+            with patch("archiscope.install.find_project", return_value=root):
                 self.assertTrue(_install_agent("codex"))
                 self.assertTrue(_install_agent("codex"))
 
@@ -25,7 +25,7 @@ class InstallTests(unittest.TestCase):
             target.parent.mkdir(parents=True)
             target.write_text("# Existing instructions\n", encoding="utf-8")
 
-            with patch("src.install.find_project", return_value=root):
+            with patch("archiscope.install.find_project", return_value=root):
                 self.assertTrue(_install_agent("copilot"))
                 self.assertTrue(_install_agent("copilot"))
 

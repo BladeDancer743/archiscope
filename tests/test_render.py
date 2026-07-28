@@ -1,8 +1,8 @@
 import unittest
 
-from src.render import derive_edges, geometry_render
-from src.render.geometry.draw.grid import str_width
-from src.strategies import PUBLIC_STRATEGIES
+from archiscope.render import derive_edges, geometry_render
+from archiscope.render.geometry.draw.grid import str_width
+from archiscope.strategies import PUBLIC_STRATEGIES
 from tests.helpers import sample_archmap
 
 

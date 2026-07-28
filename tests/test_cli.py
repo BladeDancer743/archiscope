@@ -4,8 +4,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
-from src import __version__
-from src import cli
+from archiscope import __version__, cli
 from tests.helpers import sample_archmap
 
 
@@ -13,7 +12,7 @@ class CliTests(unittest.TestCase):
     def _run(self, argv, data=None):
         stdout = io.StringIO()
         stderr = io.StringIO()
-        load_patch = patch("src.cli.load_archmap", return_value=data or sample_archmap())
+        load_patch = patch("archiscope.cli.load_archmap", return_value=data or sample_archmap())
         with (
             patch.object(sys, "argv", argv),
             patch.object(cli.sys, "platform", "test"),
@@ -35,9 +34,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(stderr, "")
 
     def test_missing_module_returns_nonzero(self):
-        code, stdout, stderr = self._run(
-            ["archiscope", "render", "missing", "--strategy", "flow"]
-        )
+        code, stdout, stderr = self._run(["archiscope", "render", "missing", "--strategy", "flow"])
         self.assertEqual(code, 2)
         self.assertEqual(stdout, "")
         self.assertIn("Module 'missing' not found", stderr)

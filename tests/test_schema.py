@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from src.schema import validate
+from archiscope.schema import validate
 from tests.helpers import sample_archmap
 
 

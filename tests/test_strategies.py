@@ -1,10 +1,10 @@
-import unittest
 import re
+import unittest
 from pathlib import Path
 
-from src import __version__
-from src.render.geometry.draw import RENDERERS
-from src.strategies import (
+from archiscope import __version__
+from archiscope.render.geometry.draw import RENDERERS
+from archiscope.strategies import (
     ALL_STRATEGY_NAMES,
     PUBLIC_STRATEGIES,
     STRATEGY_ALIASES,
