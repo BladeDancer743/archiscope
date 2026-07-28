@@ -73,7 +73,7 @@ jobs:
           wheel-test/bin/python -m pip install dist/*.whl
           wheel-test/bin/archiscope --version
           wheel-test/bin/python -m archiscope --version
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: distributions
           path: dist/
