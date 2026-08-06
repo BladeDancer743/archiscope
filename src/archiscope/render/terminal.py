@@ -30,7 +30,7 @@ from .ansi import (
     resolve_theme,
     strip_ansi,
 )
-from .geometry.draw.grid import char_width, str_width
+from .geometry.draw.grid import char_width, str_width, truncate_str
 
 
 @dataclass(frozen=True)
@@ -1276,6 +1276,7 @@ def _render_vertical_layered_topology(
     charset: str,
     width: int,
     overlay: Mapping | None,
+    depth: int = 1,
 ) -> list[_Text]:
     """Render all visible nodes and routes as one top-to-bottom bus canvas."""
 
@@ -1332,8 +1333,16 @@ def _render_vertical_layered_topology(
                 width,
                 overlay,
                 scope.focus,
+                depth,
             )
         )
+        cross_links = _cross_engine_child_links(data, chain_layers)
+        for source_label, target_label, family, count in cross_links:
+            lines.append(
+                _Text.plain("  子模块链接: ")
+                + _Text.styled(f"{source_label} ─▶ {target_label}", family)
+                + (_Text.plain(f" x{count}") if count > 1 else _Text.plain(""))
+            )
         feedback: dict[tuple[str, str], int] = {}
         for edge in topology_edges:
             if ranks.get(edge.target, 0) < ranks.get(edge.source, 0):
@@ -1419,6 +1428,150 @@ def _render_vertical_layered_topology(
     return lines
 
 
+def _cross_engine_child_links(
+    data: Mapping,
+    chain_layers: Sequence[Sequence[str]],
+) -> list[tuple[str, str, str, int]]:
+    """Child-level links between different engines' descendants.
+
+    Returns aggregated (source label, target label, family, count) pairs
+    for declared downstream/upstream references that leave one engine and
+    land inside another.
+    """
+    modules = data["modules"]
+    chain = {engine for layer in chain_layers for engine in layer}
+
+    def engine_of(path: str) -> str | None:
+        current = path
+        seen = set()
+        while current in modules and current not in seen:
+            seen.add(current)
+            if current in chain:
+                return current
+            current = modules[current].get("parent")
+        return None
+
+    counts: dict[tuple[str, str], tuple[str, int]] = {}
+    for layer in chain_layers:
+        for engine in layer:
+            for child in modules[engine].get("children") or []:
+                if child not in modules:
+                    continue
+                for target in modules[child].get("downstream") or []:
+                    owner = engine_of(target)
+                    if owner and owner != engine and target in modules:
+                        key = (child, target)
+                        label, count = counts.get(key, ("", 0))
+                        counts[key] = (label, count + 1)
+    result = []
+    for (source, target), (_, count) in counts.items():
+        family = relation_family(data, "dependency")
+        source_label = modules[source].get("label", source)
+        target_label = modules[target].get("label", target)
+        result.append((source_label, target_label, str(family), count))
+    return result
+
+
+def _nested_engine_box(
+    data: Mapping,
+    path: str,
+    charset: str,
+    inner_width: int,
+    overlay: Mapping | None,
+) -> tuple[list[_Text], int]:
+    """Engine frame with its child modules nested inside.
+
+    Returns the box lines and its height (4 + child rows), so chain-row
+    boxes of different child counts stay column-aligned.
+    """
+    module = data["modules"][path]
+    semantic = resolve_module_semantic(data, path, overlay)
+    children = [
+        child
+        for child in (module.get("children") or [])
+        if child in data["modules"]
+    ]
+    child_edges = {
+        (child, target)
+        for child in children
+        for target in (data["modules"][child].get("downstream") or [])
+        if target in children
+    }
+    dot = "*" if charset == "ascii" else "●"
+    title = (
+        _Text.styled(dot, semantic.family)
+        + _Text.plain(" ")
+        + _Text.styled(f"[{semantic.token.upper()}]", semantic.family)
+        + _Text.plain(f" {module.get('label', path)}")
+    )
+    child_box_w = max(8, (inner_width - 4) // max(1, min(len(children), 3)))
+    per_row = max(1, inner_width // (child_box_w + 1))
+    child_rows = [
+        children[index : index + per_row]
+        for index in range(0, len(children), per_row)
+    ] or [[]]
+    height = 4 + 3 * len(child_rows)
+
+    def child_box(child: str) -> list[_Text]:
+        """Three rows: top border, label, bottom border."""
+        label = truncate_str(data["modules"][child].get("label", child), child_box_w - 2)
+        label = label.ljust(child_box_w - 2)
+        if charset == "ascii":
+            return [
+                _Text.plain("+" + "-" * (child_box_w - 2) + "+"),
+                _Text.plain("|" + label + "|"),
+                _Text.plain("+" + "-" * (child_box_w - 2) + "+"),
+            ]
+        return [
+            _Text.plain("┌" + "─" * (child_box_w - 2) + "┐"),
+            _Text.plain("│" + label + "│"),
+            _Text.plain("└" + "─" * (child_box_w - 2) + "┘"),
+        ]
+
+    # top frame + title row
+    if charset == "ascii":
+        lines = [
+            _Text.plain("+" + "-" * inner_width + "+"),
+            _Text.plain("|") + title.pad(inner_width) + _Text.plain("|"),
+        ]
+    else:
+        lines = [
+            _Text.plain("┏" + "━" * inner_width + "┓"),
+            _Text.plain("┃") + title.pad(inner_width) + _Text.plain("┃"),
+        ]
+    # child rows, three lines each (top border / label / bottom border)
+    for row in child_rows:
+        for sub_line in range(3):
+            cells: list[_Text] = []
+            for index, child in enumerate(row):
+                if index:
+                    cells.append(
+                        _Text.plain("─▶")
+                        if sub_line == 1 and (row[index - 1], child) in child_edges
+                        else _Text.plain("  ")
+                    )
+                cells.append(child_box(child)[sub_line])
+            content = _Text.plain("")
+            for cell in cells:
+                content += cell
+            if charset == "ascii":
+                lines.append(_Text.plain("|") + content.pad(inner_width) + _Text.plain("|"))
+            else:
+                lines.append(_Text.plain("┃") + content.pad(inner_width) + _Text.plain("┃"))
+    if charset == "ascii":
+        lines.append(_Text.plain("+" + "-" * inner_width + "+"))
+    else:
+        lines.append(_Text.plain("┗" + "━" * inner_width + "┛"))
+    # Block-row map: child → (row index of its middle line, 0-based on the
+    # full box including the top frame and title), used by cross-engine
+    # child links to anchor their connectors.
+    block_rows: dict[str, int] = {}
+    for row_index, row in enumerate(child_rows):
+        for child in row:
+            block_rows[child] = 3 + 3 * row_index + 1
+    return lines, height, block_rows
+
+
 def _render_chain_row(
     data: Mapping,
     chain_layers: Sequence[Sequence[str]],
@@ -1427,12 +1580,14 @@ def _render_chain_row(
     width: int,
     overlay: Mapping | None,
     focus: str,
+    depth: int = 1,
 ) -> list[_Text]:
     """Render a chain as one horizontal row of boxes and arrows.
 
     Each layer holds one or two boxes side by side; the arrows between
     layers carry the relation tag (``─[DEP]▶``, dotted for projected edges)
-    so the chain keeps its semantic labels.
+    so the chain keeps its semantic labels. With ``depth >= 2`` engine
+    frames nest their child modules.
     """
     modules = data["modules"]
     total_boxes = sum(len(layer) for layer in chain_layers)
@@ -1446,21 +1601,65 @@ def _render_chain_row(
         max(label_w + semantic_prefix + 6, 20),
         max(20, (width - 4 - gaps) // total_boxes),
     )
-    layer_boxes = [
-        [
-            _module_box(
-                data,
-                path,
-                charset,
-                box_w,
-                box_w,
-                overlay,
-                focus=path == focus,
-            )
-            for path in layer
-        ]
-        for layer in chain_layers
-    ]
+
+    # With depth >= 2, engine frames nest their children so child-level
+    # relations stay visible; the child rows double as anchor rows for
+    # cross-engine child links drawn through the gaps.
+    engine_boxes: list[list[list[_Text]]] = []
+    heights: list[int] = []
+    block_rows: dict[tuple[int, int], dict[str, int]] = {}  # (layer, box) → child → row
+    for layer_index, layer in enumerate(chain_layers):
+        layer_boxes: list[list[_Text]] = []
+        for box_index, path in enumerate(layer):
+            if depth >= 2 and modules[path].get("children"):
+                box, box_height, rows = _nested_engine_box(
+                    data, path, charset, max(18, box_w - 2), overlay
+                )
+                block_rows[(layer_index, box_index)] = rows
+                layer_boxes.append(box)
+                heights.append(box_height)
+            else:
+                layer_boxes.append(
+                    _module_box(data, path, charset, box_w, box_w, overlay, focus=path == focus)
+                )
+                heights.append(3)
+        engine_boxes.append(layer_boxes)
+    height = max(heights) if heights else 3
+
+    # Cross-engine child links anchored to block rows: for every gap,
+    # (source box, source row) → (target box, target row).
+    cross_links: dict[tuple[int, int], list[tuple[int, int, str]]] = {}
+    chain_engines = [path for layer in chain_layers for path in layer]
+
+    def engine_of(path: str) -> str | None:
+        current = path
+        seen = set()
+        while current in modules and current not in seen:
+            seen.add(current)
+            if current in chain_engines:
+                return current
+            current = modules[current].get("parent")
+        return None
+
+    for layer_index, layer in enumerate(chain_layers):
+        for box_index, engine in enumerate(layer):
+            rows = block_rows.get((layer_index, box_index), {})
+            for child, child_row in rows.items():
+                for target in modules[child].get("downstream") or []:
+                    owner = engine_of(target)
+                    if not owner or owner == engine or target not in modules:
+                        continue
+                    for other_index, other_layer in enumerate(chain_layers):
+                        for other_box, other_engine in enumerate(other_layer):
+                            if other_engine == owner and other_index > layer_index:
+                                target_rows = block_rows.get((other_index, other_box), {})
+                                target_row = target_rows.get(target)
+                                if target_row is None:
+                                    target_row = 1  # nested deeper — anchor to title row
+                                cross_links.setdefault((layer_index, box_index), []).append(
+                                    (other_index, other_box, target_row, child_row)
+                                )
+                                break
 
     def chain_arrow(source: str, target: str) -> _Text:
         edge = edge_by_pair.get((source, target))
@@ -1474,30 +1673,43 @@ def _render_chain_row(
             return _Text.styled(f"{shaft}[{edge.kind}]{shaft}{arrow}", edge.family)
         return _Text.styled(f"{shaft}{arrow}", edge.family)
 
+    # Cross-engine child links, drawn only between adjacent layers when the
+    # source and target child rows align — a clean horizontal connector.
+    # Non-aligned links fall back to the text list below.
+    gap_links: dict[tuple[int, int], list[int]] = {}  # (gap, source box) → rows
+    for (src_layer, src_box), links in cross_links.items():
+        for target_layer, target_box, target_row, source_row in links:
+            if target_layer == src_layer + 1 and source_row == target_row:
+                gap_links.setdefault((src_layer, src_box), []).append(source_row)
+
     lines: list[_Text] = []
-    for line_index in range(3):
+    for line_index in range(height):
         row = _Text.plain(" " * 2)
         for layer_index, layer in enumerate(chain_layers):
             if layer_index:
                 previous = chain_layers[layer_index - 1]
-                # Arrow for the first edge crossing this layer boundary.
-                arrow_edge = next(
-                    (
-                        edge
-                        for edge in edges
-                        if edge.source in previous and edge.target in layer
-                    ),
-                    None,
-                )
-                row += (
-                    chain_arrow(arrow_edge.source, arrow_edge.target)
-                    if arrow_edge
-                    else _Text.styled("─▶", "edge")
-                )
-            for box_index, box in enumerate(layer_boxes[layer_index]):
-                if box_index:
-                    row += _Text.plain(" ")
-                row += box[line_index].pad(box_w)
+                gap = ""
+                for src_box in range(len(previous)):
+                    if line_index in gap_links.get((layer_index - 1, src_box), []):
+                        gap += "─▶"
+                if not gap:
+                    arrow_edge = next(
+                        (
+                            edge
+                            for edge in edges
+                            if edge.source in previous and edge.target in layer
+                        ),
+                        None,
+                    )
+                    gap = (
+                        chain_arrow(arrow_edge.source, arrow_edge.target).value
+                        if arrow_edge and line_index == 1
+                        else " " * 3
+                    )
+                row += _Text.plain(gap)
+            for box_index, path in enumerate(layer):
+                box = engine_boxes[layer_index][box_index]
+                row += box[line_index].pad(box_w) if line_index < len(box) else _Text.plain(" " * box_w)
         lines.append(row.truncate(width))
     return lines
 
@@ -1647,6 +1859,7 @@ def render_terminal(
             resolved_charset,
             resolved_width,
             semantic_overlay,
+            depth,
         )
     )
     lines.append(bottom_frame)
