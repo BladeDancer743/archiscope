@@ -172,6 +172,104 @@ NORD_COLORS = {
     "edge": "38;5;110",
 }
 
+# ── CRT phosphor themes — monochrome tubes, intensity instead of hue ──
+
+# P1 phosphor green (#33FF33 class).  Every semantic role is a green-family
+# shade; brightness and weight carry the distinction like a real terminal.
+CRT_GREEN_COLORS = {
+    "data": "38;5;48",       # phosphor green #00FF87
+    "command": "38;5;82",    # bright green #00FF5F
+    "authority": "38;5;112",  # yellow-green #87D700
+    "event": "38;5;154",     # lime #AFFF00
+    "reference": "38;5;41",  # dim green #00D75F
+    "orchestration": "38;5;48",
+    "compute": "38;5;190",   # pale yellow-green #D7FF00
+    "state": "38;5;154",
+    "boundary": "38;5;48",
+    "delivery": "38;5;82",
+    "assurance": "38;5;118",  # hot lime #87FF00
+    "neutral": "38;5;41",
+    "focus": "1;38;5;46",    # burning green, bold
+    "heading": "1;38;5;46",
+    "edge": "38;5;48",
+}
+
+# Amber phosphor (#FFB000 class) — the classic radar/terminal amber.
+CRT_AMBER_COLORS = {
+    "data": "38;5;214",      # amber #FFAF00
+    "command": "38;5;220",   # bright amber #FFD700
+    "authority": "38;5;178",  # mustard #D7AF00
+    "event": "38;5;228",     # pale amber #FFFF87
+    "reference": "38;5;172",  # dim amber #D78700
+    "orchestration": "38;5;214",
+    "compute": "38;5;221",   # light amber #FFD75F
+    "state": "38;5;228",
+    "boundary": "38;5;214",
+    "delivery": "38;5;220",
+    "assurance": "38;5;202",  # hot orange #FF5F00
+    "neutral": "38;5;172",
+    "focus": "1;38;5;221",
+    "heading": "1;38;5;228",
+    "edge": "38;5;214",
+}
+
+# Synthwave — neon magenta/cyan/purple on a deep blue-black tube.
+SYNTHWAVE_COLORS = {
+    "data": "38;5;45",       # neon cyan #00D7FF
+    "command": "38;5;207",   # hot pink #FF5FAF
+    "authority": "38;5;141",  # neon purple #AF87FF
+    "event": "38;5;123",     # electric cyan #87FFFF
+    "reference": "38;5;105",  # blue-violet #8787FF
+    "orchestration": "38;5;45",
+    "compute": "38;5;221",   # sunset yellow #FFD75F
+    "state": "38;5;123",
+    "boundary": "38;5;45",
+    "delivery": "38;5;207",
+    "assurance": "38;5;201",  # magenta #FF00FF
+    "neutral": "38;5;105",
+    "focus": "1;38;5;207",
+    "heading": "1;38;5;51",  # white-cyan #00FFFF
+    "edge": "38;5;45",
+}
+
+# Gruvbox dark (#282828) — warm, low-glare palette.
+GRUVBOX_COLORS = {
+    "data": "38;5;110",      # blue #83A598
+    "command": "38;5;208",   # orange #FE8019
+    "authority": "38;5;175",  # purple #D3869B
+    "event": "38;5;142",     # green #B8BB26
+    "reference": "38;5;244",  # gray #928374
+    "orchestration": "38;5;108",  # aqua #8EC07C
+    "compute": "38;5;214",   # yellow #FABD2F
+    "state": "38;5;142",
+    "boundary": "38;5;108",
+    "delivery": "38;5;208",
+    "assurance": "38;5;209",  # red #FB4934
+    "neutral": "38;5;244",
+    "focus": "1;38;5;214",
+    "heading": "1;38;5;251",
+    "edge": "38;5;108",
+}
+
+# Tokyo Night (#1A1B26) — cool blue-violet, high clarity.
+TOKYONIGHT_COLORS = {
+    "data": "38;5;69",       # blue #7AA2F7
+    "command": "38;5;209",   # orange-pink #FF9E64
+    "authority": "38;5;141",  # purple #BB9AF7
+    "event": "38;5;150",     # green #9ECE6A
+    "reference": "38;5;146",  # gray-blue #A9B1D6
+    "orchestration": "38;5;75",  # cyan #7DCFFF
+    "compute": "38;5;180",   # yellow #E0AF68
+    "state": "38;5;150",
+    "boundary": "38;5;75",
+    "delivery": "38;5;209",
+    "assurance": "38;5;204",  # pink #F7768E
+    "neutral": "38;5;146",
+    "focus": "1;38;5;180",
+    "heading": "1;38;5;254",
+    "edge": "38;5;75",
+}
+
 THEMES: dict[str, Theme] = {
     "default": Theme(
         "default",
@@ -201,6 +299,36 @@ THEMES: dict[str, Theme] = {
         "nord",
         "Nord 冷色（#2E3440 背景），蓝青为主低眩光",
         NORD_COLORS,
+        DEFAULT_TYPE_COLORS,
+    ),
+    "crt-green": Theme(
+        "crt-green",
+        "CRT 磷光绿（P1 phosphor），单色管亮度分级",
+        CRT_GREEN_COLORS,
+        DEFAULT_TYPE_COLORS,
+    ),
+    "crt-amber": Theme(
+        "crt-amber",
+        "CRT 琥珀磷光（#FFB000 类），雷达/终端经典琥珀",
+        CRT_AMBER_COLORS,
+        DEFAULT_TYPE_COLORS,
+    ),
+    "synthwave": Theme(
+        "synthwave",
+        "Synthwave 霓虹（深蓝黑底），品红/青/紫",
+        SYNTHWAVE_COLORS,
+        DEFAULT_TYPE_COLORS,
+    ),
+    "gruvbox": Theme(
+        "gruvbox",
+        "Gruvbox 暗色（#282828），暖调低眩光",
+        GRUVBOX_COLORS,
+        DEFAULT_TYPE_COLORS,
+    ),
+    "tokyonight": Theme(
+        "tokyonight",
+        "Tokyo Night（#1A1B26），冷蓝紫高清晰",
+        TOKYONIGHT_COLORS,
         DEFAULT_TYPE_COLORS,
     ),
 }
