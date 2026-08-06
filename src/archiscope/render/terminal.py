@@ -30,7 +30,7 @@ from .ansi import (
     resolve_theme,
     strip_ansi,
 )
-from .geometry.draw.grid import char_width, str_width, truncate_str
+from .geometry.draw.grid import char_width, split_lines, str_width, truncate_str
 
 
 @dataclass(frozen=True)
@@ -1531,7 +1531,40 @@ def _nested_engine_box(
         than the frame wrap onto two lines.
         """
         label = data["modules"][child].get("label", child)
-        parts = split_lines(label, max_w) if str_width(label) > max_w else [label]
+        # Hard-cut long labels at display width (split_lines only splits on
+        # word boundaries). For two lines, balance the cut so the remainder
+        # fits on its own row instead of leaving a one-character orphan.
+        parts: list[str] = []
+        total_w = str_width(label)
+        line_count = max(1, (total_w + max_w - 1) // max_w)
+        if line_count == 2:
+            best = None
+            prefix_w = 0
+            for character in label:
+                cw = char_width(character)
+                if prefix_w + cw > max_w:
+                    break
+                remaining_w = total_w - prefix_w - cw
+                # the remainder must be at least two CJK cells so the
+                # second line never holds a one-character orphan
+                if remaining_w <= max_w and remaining_w >= 4:
+                    best = prefix_w + cw
+                prefix_w += cw
+            if best:
+                cut = truncate_str(label, best, suffix="")
+                parts = [cut, label[len(cut) :]]
+            else:
+                parts = [label]
+        elif line_count > 2:
+            remaining = label
+            while str_width(remaining) > max_w:
+                cut = truncate_str(remaining, max_w, suffix="")
+                parts.append(cut)
+                remaining = remaining[len(cut) :]
+            if remaining:
+                parts.append(remaining)
+        else:
+            parts = [label]
         block_w = min(max(str_width(part) for part in parts) + 2, max_w + 2)
         inner = block_w - 2
 
@@ -1554,21 +1587,15 @@ def _nested_engine_box(
             ]
         return lines, block_w, len(parts)
 
-    # Greedy packing: each row takes as many children as fit, blocks sized
-    # by their own labels so nothing is silently truncated.
-    max_label_w = inner_width - 2
-    child_rows: list[list[str]] = []
-    current: list[str] = []
-    current_w = 0
-    for child in children:
-        _, block_w, _ = child_block(child, max_label_w)
-        if current and current_w + block_w + 1 > inner_width:
-            child_rows.append(current)
-            current, current_w = [], 0
-        current.append(child)
-        current_w += block_w + 1
-    if current:
-        child_rows.append(current)
+    # Two blocks per row: keeps the frame compact for many-children engines
+    # (an 11-child layer otherwise grows to 11 stacked rows). Wide labels
+    # wrap onto two lines inside their block.
+    per_row = 2
+    child_rows = [
+        children[index : index + per_row]
+        for index in range(0, len(children), per_row)
+    ] or [[]]
+    max_label_w = max(1, (inner_width - 4) // 2)
 
     # top frame + title row(s)
     if charset == "ascii":
