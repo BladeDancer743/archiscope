@@ -1695,9 +1695,22 @@ def _render_chain_row(
     arrow_w = 3  # "─▶" plus one gap cell; custom-kind tags may overflow
     gaps = (len(chain_layers) - 1) * arrow_w + (total_boxes - len(chain_layers))
     semantic_prefix = 9  # "● [FAMILY] " inside each frame
+    # Frame width is driven by the nested two-column layout: two child
+    # labels side by side plus borders and the inter-block arrow. A wide
+    # child column keeps most labels on a single line instead of wrapping
+    # everything.
+    child_widths = [
+        str_width(modules[child].get("label", child))
+        for layer in chain_layers
+        for path in layer
+        for child in modules[path].get("children") or []
+        if child in modules
+    ]
+    child_need = 2 * max(child_widths, default=0) + 8
+    available = max(20, (width - 4 - gaps) // total_boxes)
     box_w = min(
-        max(label_w + semantic_prefix + 6, 20),
-        max(20, (width - 4 - gaps) // total_boxes),
+        max(label_w + semantic_prefix + 6, child_need, 20),
+        available,
     )
 
     # With depth >= 2, engine frames nest their children so child-level
