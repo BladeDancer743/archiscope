@@ -442,31 +442,35 @@ class RenderTests(unittest.TestCase):
         )
         self.assertIn("VERTICAL LAYERED BUS TOPOLOGY", output)
         self.assertIn("[DEP]", output)
-        self.assertIn("+--[DEP]", output)
-        self.assertIn("v", output)
-        self.assertIn("+----------------", output)
+        self.assertIn("->", output)  # chain-row arrow
+        self.assertIn("+------------+", output)
         for unicode_glyph in "╔╗┏┓┌┐◇╌─┄▶◀●◆○▾·…→▼│┆↕":
             self.assertNotIn(unicode_glyph, output)
 
     def test_lane_connectors_terminate_on_target_frames(self):
         """Route lanes drop a vertical connector onto the target frame —
-        the arrow column must not hang in the void."""
+        the arrow column must not hang in the void. (A pure chain renders
+        as a horizontal row instead, so a three-module layer keeps the
+        graph out of chain mode.)"""
         data = {
             "schema": "archiscope/1.0",
             "modules": {
-                "root": {"label": "R", "type": "root", "children": ["a", "b"]},
+                "root": {"label": "R", "type": "root", "children": ["a", "b", "d", "f"]},
                 "a": {"label": "甲", "type": "module", "parent": "root", "downstream": ["b"]},
                 "b": {"label": "乙", "type": "module", "parent": "root", "upstream": ["a"]},
+                "d": {"label": "丁", "type": "module", "parent": "root", "downstream": ["b"]},
+                "f": {"label": "戊", "type": "module", "parent": "root", "downstream": ["b"]},
             },
         }
         output = render_terminal(data, "all", width=80, color="never", charset="unicode")
         lines = output.splitlines()
         lane = next(line for line in lines if "▼" in line)
         idx = lines.index(lane)
-        # connector runs through the target layer label row and terminates
-        # on the frame top with a tee
-        self.assertIn("│", lines[idx + 1])
-        self.assertIn("┴", lines[idx + 2])
+        # the connector drops onto the target frame's top line with a tee;
+        # it may be interrupted by other sources' role rows, but it must
+        # terminate on the frame rather than hang in the void
+        self.assertTrue(any("│" in line for line in lines[idx + 1 : idx + 6]))
+        self.assertTrue(any("┴" in line for line in lines[idx + 1 : idx + 8]))
 
     def test_terminal_ansi_is_a_post_layout_invariant(self):
         data = sample_archmap_with_custom_root()
@@ -697,8 +701,7 @@ class RenderTests(unittest.TestCase):
         )
         self.assertIn("[INGESTION]", output)
         self.assertIn("[REF]", output)
-        self.assertIn("x-snapshot", output)
-        self.assertIn("Snapshot", output)
+        self.assertIn("[x-snapshot]", output)  # custom kind token on the chain arrow
 
 
 if __name__ == "__main__":

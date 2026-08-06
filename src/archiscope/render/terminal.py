@@ -1098,10 +1098,13 @@ def _layer_box_rows(
     for start in range(0, len(paths), per_row):
         chunk = paths[start : start + per_row]
         # A logical layer is 1..N nodes, never a fixed one- or two-column
-        # template.  Use the whole available physical row so a lone CJK label
-        # is not needlessly clipped; only the width-derived packing count may
-        # change when the terminal is resized.
-        box_width = max(16, (width - gap * (len(chunk) - 1)) // len(chunk))
+        # template.  A lone module gets a content-sized, centered frame
+        # instead of a full-width bar; multi-module rows share the width.
+        if len(chunk) == 1:
+            label = data["modules"][chunk[0]].get("label", chunk[0])
+            box_width = min(max(str_width(label) + 8, 16), width - 4)
+        else:
+            box_width = max(16, (width - gap * (len(chunk) - 1)) // len(chunk))
         rendered = [
             _module_box(
                 data,
@@ -1301,6 +1304,63 @@ def _render_vertical_layered_topology(
         else "VERTICAL LAYERED BUS TOPOLOGY / 纵向分层总线拓扑"
     )
     lines = [_rule(heading, width, charset)]
+
+    # Full-chain graphs (every layer holds exactly one module and adjacent
+    # layers are directly connected, e.g. Probe→Forge→Reach→…) render as one
+    # compact horizontal row with arrows instead of six full-width frames —
+    # the vertical stack of single boxes was low-density and hard to read.
+    if (
+        len(layers) > 1
+        and all(len(layer) <= 2 for layer in layers)
+        and all(
+            any(
+                (a, b) in {(edge.source, edge.target) for edge in topology_edges}
+                for a in layers[rank]
+                for b in layers[rank + 1]
+            )
+            for rank in range(len(layers) - 1)
+        )
+    ):
+        chain_layers = layers
+        lines.append(_Text.styled(f"L0-L{len(chain_layers) - 1} 链式流", "heading"))
+        lines.extend(
+            _render_chain_row(
+                data,
+                chain_layers,
+                topology_edges,
+                charset,
+                width,
+                overlay,
+                scope.focus,
+            )
+        )
+        feedback: dict[tuple[str, str], int] = {}
+        for edge in topology_edges:
+            if ranks.get(edge.target, 0) < ranks.get(edge.source, 0):
+                feedback[(edge.source, edge.target)] = (
+                    feedback.get((edge.source, edge.target), 0) + edge.canonical_count
+                )
+        for (source_path, target_path), count in sorted(feedback.items()):
+            source = data["modules"][source_path].get("label", source_path)
+            target = data["modules"][target_path].get("label", target_path)
+            count_text = f" x{count}" if count > 1 else ""
+            lines.append(
+                _Text.plain("  OUTER FEEDBACK BUS: ")
+                + _Text.styled(f"{source} ▲ {target}{count_text}", "assurance")
+            )
+        if isolated:
+            lines.append(_rule("ISOLATED", width, charset))
+            isolated_rows, _ = _layer_box_rows(
+                data,
+                isolated,
+                charset,
+                width,
+                overlay,
+                focus=scope.focus,
+            )
+            lines.extend(isolated_rows)
+        return lines
+
     layer_top_line: dict[int, int] = {}
     layer_spans: dict[int, dict[str, tuple[int, int]]] = {}
     lane_infos: list[tuple[int, TerminalEdge, str]] = []
@@ -1356,6 +1416,88 @@ def _render_vertical_layered_topology(
         lines.extend(isolated_rows)
 
     _draw_lane_connectors(lines, lane_infos, layer_top_line, layer_spans, ranks, charset)
+    return lines
+
+
+def _render_chain_row(
+    data: Mapping,
+    chain_layers: Sequence[Sequence[str]],
+    edges: Sequence[TerminalEdge],
+    charset: str,
+    width: int,
+    overlay: Mapping | None,
+    focus: str,
+) -> list[_Text]:
+    """Render a chain as one horizontal row of boxes and arrows.
+
+    Each layer holds one or two boxes side by side; the arrows between
+    layers carry the relation tag (``─[DEP]▶``, dotted for projected edges)
+    so the chain keeps its semantic labels.
+    """
+    modules = data["modules"]
+    total_boxes = sum(len(layer) for layer in chain_layers)
+    labels = [modules[p].get("label", p) for layer in chain_layers for p in layer]
+    label_w = max(str_width(label) for label in labels)
+    edge_by_pair = {(edge.source, edge.target): edge for edge in edges}
+    arrow_w = 3  # "─▶" plus one gap cell; custom-kind tags may overflow
+    gaps = (len(chain_layers) - 1) * arrow_w + (total_boxes - len(chain_layers))
+    box_w = min(
+        max(label_w + 6, 14),
+        max(14, (width - 4 - gaps) // total_boxes),
+    )
+    layer_boxes = [
+        [
+            _module_box(
+                data,
+                path,
+                charset,
+                box_w,
+                box_w,
+                overlay,
+                focus=path == focus,
+            )
+            for path in layer
+        ]
+        for layer in chain_layers
+    ]
+
+    def chain_arrow(source: str, target: str) -> _Text:
+        edge = edge_by_pair.get((source, target))
+        if edge is None:
+            return _Text.styled("─▶" if charset == "unicode" else "->", "edge")
+        shaft = "┄" if edge.projected else ("-" if charset == "ascii" else "─")
+        arrow = ">" if charset == "ascii" else "▶"
+        if edge.kind != edge.family:
+            # custom kinds keep their exact token; plain families rely on
+            # the legend and the edge color
+            return _Text.styled(f"{shaft}[{edge.kind}]{shaft}{arrow}", edge.family)
+        return _Text.styled(f"{shaft}{arrow}", edge.family)
+
+    lines: list[_Text] = []
+    for line_index in range(3):
+        row = _Text.plain(" " * 2)
+        for layer_index, layer in enumerate(chain_layers):
+            if layer_index:
+                previous = chain_layers[layer_index - 1]
+                # Arrow for the first edge crossing this layer boundary.
+                arrow_edge = next(
+                    (
+                        edge
+                        for edge in edges
+                        if edge.source in previous and edge.target in layer
+                    ),
+                    None,
+                )
+                row += (
+                    chain_arrow(arrow_edge.source, arrow_edge.target)
+                    if arrow_edge
+                    else _Text.styled("─▶", "edge")
+                )
+            for box_index, box in enumerate(layer_boxes[layer_index]):
+                if box_index:
+                    row += _Text.plain(" ")
+                row += box[line_index].pad(box_w)
+        lines.append(row.truncate(width))
     return lines
 
 
