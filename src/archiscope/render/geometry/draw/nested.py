@@ -3,7 +3,7 @@
 All three strategies share the same underlying geometry: boxes inside boxes.
 """
 
-from ...ansi import ANSI_COLORS, TYPE_COLOR
+from ...ansi import TYPE_COLOR, resolve_theme
 from ..correct.engine import correct
 from ..draw.grid import CharGrid, str_width
 from ..verify.rules import VerifyContext
@@ -110,7 +110,9 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
     )
     result = correct(vctx)
     rendered = (
-        result.grid.render_ansi(ANSI_COLORS) if ctx.color else result.grid.render()
+        result.grid.render_ansi(resolve_theme(ctx.theme).colors)
+        if ctx.color
+        else result.grid.render()
     )
     if ctx.group_labels:
         heading = "LANES / 泳道" if style == "swimlane" else "GROUPS / 分组"

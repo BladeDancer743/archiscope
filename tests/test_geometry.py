@@ -10,7 +10,7 @@ Regression guards for the geometry quality loop:
 import unittest
 
 from archiscope.render import geometry_render
-from archiscope.render.ansi import ANSI_COLORS, strip_ansi
+from archiscope.render.ansi import ANSI_COLORS, THEMES, resolve_theme, strip_ansi
 from archiscope.render.geometry.correct.engine import correct
 from archiscope.render.geometry.draw.grid import CharGrid, str_width
 from archiscope.render.geometry.verify.engine import verify
@@ -116,6 +116,29 @@ class ColorRenderTests(unittest.TestCase):
             strip_ansi(colored),
             geometry_render(data, "engine", "heat_matrix", color="never"),
         )
+
+    def test_every_theme_preserves_geometry(self):
+        data = sample_archmap()
+        plain = geometry_render(data, "engine", "grouped", color="never")
+        for name in THEMES:
+            with self.subTest(theme=name):
+                colored = geometry_render(
+                    data, "engine", "grouped", color="always", theme=name
+                )
+                self.assertIn("\x1b[", colored)
+                self.assertEqual(strip_ansi(colored), plain)
+                # themes differ from each other in at least the group frame
+                if name != "default":
+                    default = geometry_render(
+                        data, "engine", "grouped", color="always", theme="default"
+                    )
+                    self.assertNotEqual(colored, default)
+
+    def test_unknown_theme_raises(self):
+        from archiscope.render.ansi import TerminalRenderError
+
+        with self.assertRaises(TerminalRenderError):
+            resolve_theme("no-such-theme")
 
 
 class MultiColumnAlignmentTests(unittest.TestCase):

@@ -6,7 +6,7 @@ routing with per-gap lanes. Long edges pass through corridor rows in the
 intermediate columns, so lines never pierce boxes.
 """
 
-from ...ansi import ANSI_COLORS, TYPE_COLOR
+from ...ansi import TYPE_COLOR, resolve_theme
 from ..correct.engine import correct
 from ..verify.rules import VerifyContext
 from .grid import ARROW_RIGHT, CharGrid, split_lines, str_width, truncate_str
@@ -281,7 +281,11 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
         color=ctx.color,
     )
     result = correct(vctx)
-    out = result.grid.render_ansi(ANSI_COLORS) if ctx.color else result.grid.render()
+    out = (
+        result.grid.render_ansi(resolve_theme(ctx.theme).colors)
+        if ctx.color
+        else result.grid.render()
+    )
     if legend:
         out += "\n" + "\n".join(legend)
     return out

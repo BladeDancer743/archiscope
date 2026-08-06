@@ -448,6 +448,26 @@ class RenderTests(unittest.TestCase):
         for unicode_glyph in "╔╗┏┓┌┐◇╌─┄▶◀●◆○▾·…→▼│┆↕":
             self.assertNotIn(unicode_glyph, output)
 
+    def test_lane_connectors_terminate_on_target_frames(self):
+        """Route lanes drop a vertical connector onto the target frame —
+        the arrow column must not hang in the void."""
+        data = {
+            "schema": "archiscope/1.0",
+            "modules": {
+                "root": {"label": "R", "type": "root", "children": ["a", "b"]},
+                "a": {"label": "甲", "type": "module", "parent": "root", "downstream": ["b"]},
+                "b": {"label": "乙", "type": "module", "parent": "root", "upstream": ["a"]},
+            },
+        }
+        output = render_terminal(data, "all", width=80, color="never", charset="unicode")
+        lines = output.splitlines()
+        lane = next(line for line in lines if "▼" in line)
+        idx = lines.index(lane)
+        # connector runs through the target layer label row and terminates
+        # on the frame top with a tee
+        self.assertIn("│", lines[idx + 1])
+        self.assertIn("┴", lines[idx + 2])
+
     def test_terminal_ansi_is_a_post_layout_invariant(self):
         data = sample_archmap_with_custom_root()
         plain = render_terminal(

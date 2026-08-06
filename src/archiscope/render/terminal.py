@@ -27,6 +27,7 @@ from .ansi import (
     ANSI_COLORS,
     TerminalRenderError,
     color_enabled,
+    resolve_theme,
     strip_ansi,
 )
 from .geometry.draw.grid import char_width, str_width
@@ -93,12 +94,13 @@ class _Text:
         value = self.truncate(width)
         return value + _Text.plain(" " * max(0, width - value.width))
 
-    def render(self, use_color: bool) -> str:
+    def render(self, use_color: bool, color_map: Mapping[str, str] | None = None) -> str:
         if not use_color:
             return self.value
+        palette = ANSI_COLORS if color_map is None else color_map
         rendered: list[str] = []
         for span in self.spans:
-            code = ANSI_COLORS.get(span.style or "")
+            code = palette.get(span.style or "")
             if code and span.text:
                 rendered.append(f"\x1b[{code}m{span.text}\x1b[0m")
             else:
@@ -1078,15 +1080,21 @@ def _layer_box_rows(
     overlay: Mapping | None,
     *,
     focus: str,
-) -> list[_Text]:
-    """Pack one logical layer into stable, width-dependent physical rows."""
+) -> tuple[list[_Text], dict[str, tuple[int, int]]]:
+    """Pack one logical layer into stable, width-dependent physical rows.
+
+    Returns the rows plus per-path display-column spans (inclusive, both
+    borders), which the route lanes use to terminate their vertical
+    connector lines on the correct frame.
+    """
 
     if not paths:
-        return []
+        return [], {}
     gap = 3
     minimum_box_width = 24
     per_row = max(1, (width + gap) // (minimum_box_width + gap))
     lines: list[_Text] = []
+    spans: dict[str, tuple[int, int]] = {}
     for start in range(0, len(paths), per_row):
         chunk = paths[start : start + per_row]
         # A logical layer is 1..N nodes, never a fixed one- or two-column
@@ -1108,6 +1116,10 @@ def _layer_box_rows(
         ]
         group_width = box_width * len(chunk) + gap * (len(chunk) - 1)
         left_padding = max(0, (width - group_width) // 2)
+        for box_index, box in enumerate(rendered):
+            path = chunk[box_index]
+            x0 = left_padding + box_index * (box_width + gap)
+            spans[path] = (x0, x0 + box_width - 1)
         for line_index in range(3):
             row = _Text.plain(" " * left_padding)
             for box_index, box in enumerate(rendered):
@@ -1115,7 +1127,69 @@ def _layer_box_rows(
                     row += _Text.plain(" " * gap)
                 row += box[line_index].pad(box_width)
             lines.append(row.truncate(width))
-    return lines
+    return lines, spans
+
+
+def _char_at_column(text: _Text, column: int) -> str:
+    """The character occupying a display column (wide chars span two)."""
+    used = 0
+    for span in text.spans:
+        for character in span.text:
+            width = char_width(character)
+            if used == column:
+                return character
+            used += width
+            if used > column:
+                return character
+    return " "
+
+
+def _overlay_column(text: _Text, column: int, ch: str) -> _Text:
+    """Replace the character at a display column, keeping all other spans.
+
+    When the column lies beyond the current text, the text is padded with
+    spaces up to it so the overlay character still lands at the right
+    display column (route lanes may target shorter lines such as the ``L1``
+    label row).
+    """
+    spans = list(text.spans)
+    out: list[_Span] = []
+    used = 0
+    for index, span in enumerate(spans):
+        width = str_width(span.text)
+        if used + width <= column:
+            out.append(span)
+            used += width
+            continue
+        head: list[str] = []
+        tail: list[str] = []
+        for character in span.text:
+            cw = char_width(character)
+            if used + cw <= column:
+                head.append(character)
+                used += cw
+            elif used == column:
+                # The character starts at the target column — drop it; the
+                # overlay character replaces it (same cell width).
+                used += cw
+            elif used < column:
+                # A wide char straddles the column — drop it and pad with
+                # spaces so the display width is preserved.
+                used += cw
+                tail.append(" " * cw)
+            else:
+                tail.append(character)
+                used += cw
+        if head:
+            out.append(_Span("".join(head), span.style))
+        out.append(_Span(ch))
+        if tail:
+            out.append(_Span("".join(tail), span.style))
+        out.extend(spans[index + 1 :])
+        return _Text(tuple(out))
+    # Column beyond every span — pad up to it, then place the character.
+    out.append(_Span(" " * (column - used) + ch))
+    return _Text(tuple(out))
 
 
 def _route_lane(
@@ -1227,18 +1301,23 @@ def _render_vertical_layered_topology(
         else "VERTICAL LAYERED BUS TOPOLOGY / 纵向分层总线拓扑"
     )
     lines = [_rule(heading, width, charset)]
+    layer_top_line: dict[int, int] = {}
+    layer_spans: dict[int, dict[str, tuple[int, int]]] = {}
+    lane_infos: list[tuple[int, TerminalEdge, str]] = []
+
     for rank, layer in enumerate(layers):
         lines.append(_Text.styled(f"L{rank}", "heading"))
-        lines.extend(
-            _layer_box_rows(
-                data,
-                layer,
-                charset,
-                width,
-                overlay,
-                focus=scope.focus,
-            )
+        layer_top_line[rank] = len(lines)
+        box_rows, spans = _layer_box_rows(
+            data,
+            layer,
+            charset,
+            width,
+            overlay,
+            focus=scope.focus,
         )
+        lines.extend(box_rows)
+        layer_spans[rank] = spans
         for source in layer:
             source_edges = edges_by_source[source]
             if not source_edges:
@@ -1251,31 +1330,105 @@ def _render_vertical_layered_topology(
                 lines.append(
                     _Text.plain("  ") + _Text.styled(f"{source_label} :: {role}", "heading")
                 )
-                lines.extend(
-                    _route_lane(
-                        data,
-                        edge,
-                        _route_class(edge, ranks),
-                        ranks,
-                        charset,
-                        width,
+                for edge in role_edges:
+                    lane_infos.append((len(lines), edge, _route_class(edge, ranks)))
+                    lines.append(
+                        _route_lane(
+                            data,
+                            edge,
+                            _route_class(edge, ranks),
+                            ranks,
+                            charset,
+                            width,
+                        )
                     )
-                    for edge in role_edges
-                )
 
     if isolated:
         lines.append(_rule("ISOLATED", width, charset))
-        lines.extend(
-            _layer_box_rows(
-                data,
-                isolated,
-                charset,
-                width,
-                overlay,
-                focus=scope.focus,
-            )
+        isolated_rows, _ = _layer_box_rows(
+            data,
+            isolated,
+            charset,
+            width,
+            overlay,
+            focus=scope.focus,
         )
+        lines.extend(isolated_rows)
+
+    _draw_lane_connectors(lines, lane_infos, layer_top_line, layer_spans, ranks, charset)
     return lines
+
+
+def _draw_lane_connectors(
+    lines: list[_Text],
+    lane_infos: list[tuple[int, TerminalEdge, str]],
+    layer_top_line: Mapping[int, int],
+    layer_spans: Mapping[int, Mapping[str, tuple[int, int]]],
+    ranks: Mapping[str, int],
+    charset: str,
+) -> None:
+    """Extend each route lane with a vertical connector onto the target frame.
+
+    The lane itself is a semantic annotation (``├──[DEP]──▼ L1 label``); its
+    arrow column used to hang in the void.  A connector line now drops from
+    that column to the target layer's frame — the frame top for forward
+    edges (┴), the frame bottom for feedback/bidirectional edges (┬) — and
+    bridges horizontally along the frame line when the column sits outside
+    the frame's span.
+    """
+
+    vertical = "|" if charset == "ascii" else "│"
+    hchar = "-" if charset == "ascii" else "─"
+    tee_top = "+" if charset == "ascii" else "┴"  # joins a frame top line
+    tee_bottom = "+" if charset == "ascii" else "┬"  # joins a frame bottom line
+    # ``    ├──[TAG]──marker──arrow`` — the arrow column is fixed by layout.
+    arrow_col = 4 + 3 + 5 + 4
+
+    def drop(from_idx: int, to_idx: int) -> None:
+        step = 1 if to_idx > from_idx else -1
+        for i in range(from_idx, to_idx, step):
+            if _char_at_column(lines[i], arrow_col) == " ":
+                lines[i] = _overlay_column(lines[i], arrow_col, vertical)
+
+    def terminate(line_idx: int, span: tuple[int, int], tee: str) -> None:
+        x0, x1 = span
+        if x0 < arrow_col < x1:
+            lines[line_idx] = _overlay_column(lines[line_idx], arrow_col, tee)
+            return
+        if arrow_col <= x0:
+            for c in range(arrow_col + 1, x0 + 1):
+                if _char_at_column(lines[line_idx], c) == " ":
+                    lines[line_idx] = _overlay_column(lines[line_idx], c, hchar)
+            lines[line_idx] = _overlay_column(lines[line_idx], x0 + 1, tee)
+        else:
+            for c in range(x1 - 1, arrow_col):
+                if _char_at_column(lines[line_idx], c) == " ":
+                    lines[line_idx] = _overlay_column(lines[line_idx], c, hchar)
+            lines[line_idx] = _overlay_column(lines[line_idx], x1 - 1, tee)
+
+    for lane_idx, edge, route_class in lane_infos:
+        source_rank = ranks.get(edge.source)
+        target_rank = ranks.get(edge.target)
+        if source_rank is None or target_rank is None:
+            continue
+        span = layer_spans.get(target_rank, {}).get(edge.target)
+        if span is None:
+            continue
+
+        if route_class == "forward":
+            # ▼ — drop onto the target frame's top line (adjacent layers only).
+            if target_rank - source_rank != 1:
+                continue
+            top_idx = layer_top_line[target_rank]
+            drop(lane_idx + 1, top_idx)
+            terminate(top_idx, span, tee_top)
+        elif route_class in {"feedback", "bidirectional"} and target_rank == source_rank:
+            # ▲ / ↕ — same layer: the target frame's bottom line sits above
+            # the lane, so the connector rises onto it.
+            bottom_idx = layer_top_line[target_rank] + 2
+            drop(lane_idx - 1, bottom_idx)
+            terminate(bottom_idx, span, tee_bottom)
+        # lateral (▶) and cross-layer feedback keep the bare annotation.
 
 
 def render_terminal(
@@ -1288,6 +1441,7 @@ def render_terminal(
     charset: str = "auto",
     width: int | None = None,
     semantic_overlay: Mapping | None = None,
+    theme: str = "default",
     stream: TextIO | None = None,
     isatty: bool | None = None,
     env: Mapping[str, str] | None = None,
@@ -1369,7 +1523,8 @@ def render_terminal(
     plain = "\n".join(line.value for line in lines)
     if any(str_width(line) > resolved_width for line in plain.splitlines()):
         raise TerminalRenderError("Terminal layout exceeded the requested width")
-    rendered = "\n".join(line.render(use_color) for line in lines)
+    theme_colors = resolve_theme(theme).colors
+    rendered = "\n".join(line.render(use_color, theme_colors) for line in lines)
     if use_color and strip_ansi(rendered) != plain:
         raise TerminalRenderError("ANSI styling changed terminal geometry")
     return rendered

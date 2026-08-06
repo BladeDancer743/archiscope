@@ -323,6 +323,7 @@ def geometry_render(
     module_path: str,
     strategy: str | None = None,
     color: str = "auto",
+    theme: str = "default",
 ) -> str:
     """Render a geometric architecture view.
 
@@ -330,7 +331,8 @@ def geometry_render(
     its upstream + itself + downstream (context diagram, focus emphasized).
 
     ``color`` follows the same ``auto|always|never`` policy as the terminal
-    overview; ``auto`` disables colors for non-TTY output.
+    overview; ``auto`` disables colors for non-TTY output. ``theme`` selects
+    the color scheme (see ``render.ansi.THEMES``).
     """
     modules = data.get("modules", {})
     actual = resolve_module_path(data, module_path)
@@ -381,6 +383,7 @@ def geometry_render(
         focus=focus,
         group_labels=group_labels,
         color=color_enabled(color),
+        theme=theme,
     )
 
     renderer = RENDERERS.get(effective_strategy)

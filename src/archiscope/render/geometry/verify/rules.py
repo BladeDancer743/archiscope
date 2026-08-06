@@ -38,6 +38,7 @@ class VerifyContext:
     focus: Optional[str] = None  # module the view is centered on (double border)
     group_labels: dict[str, str] = field(default_factory=dict)
     color: bool = False  # render ANSI colors via grid.render_ansi
+    theme: str = "default"  # color theme name (see render.ansi.THEMES)
 
 
 # ═══════════════════════════════════════════════════════════

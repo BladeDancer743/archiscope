@@ -4,7 +4,9 @@ Rows = producers (from modules), Columns = consumers (to modules).
 █ = high coupling (5+ edges), ▓ = medium (3-4), ▒ = low (2), ░ = trace (1), · = none.
 """
 
-from ...ansi import ANSI_COLORS
+from typing import Mapping
+
+from ...ansi import resolve_theme
 from ..draw.grid import (
     BLOCK_DARK,
     BLOCK_DOT,
@@ -30,10 +32,17 @@ def _heat_color(count: int) -> str | None:
     return None
 
 
-def _colorize(value: str, key: str | None, use_color: bool) -> str:
-    if not use_color or not key:
+def _colorize(value: str, key: str | None, palette: Mapping[str, str] | None) -> str:
+    if not palette or not key:
         return value
-    return f"\x1b[{ANSI_COLORS[key]}m{value}\x1b[0m"
+    code = palette.get(key)
+    if not code:
+        return value
+    return f"\x1b[{code}m{value}\x1b[0m"
+
+
+def _palette(ctx: VerifyContext) -> Mapping[str, str] | None:
+    return resolve_theme(ctx.theme).colors if ctx.color else None
 
 
 def render_heat_matrix(ctx: VerifyContext) -> str:
@@ -88,7 +97,7 @@ def render_heat_matrix(ctx: VerifyContext) -> str:
                 ch = BLOCK_LIGHT * count
             else:
                 ch = BLOCK_DOT
-            row.append(pad_str(_colorize(ch, _heat_color(count), ctx.color), col_w))
+            row.append(pad_str(_colorize(ch, _heat_color(count), _palette(ctx)), col_w))
         lines.append("".join(row))
 
     # Hotspot ranking
@@ -100,7 +109,7 @@ def render_heat_matrix(ctx: VerifyContext) -> str:
         label = modules[m].get("label", m)
         bar = "█" * min(cnt * 2, 20)
         lines.append(
-            f"  {pad_str(label, row_w)} {_colorize(bar, 'assurance', ctx.color)} ({cnt})"
+            f"  {pad_str(label, row_w)} {_colorize(bar, 'assurance', _palette(ctx))} ({cnt})"
         )
 
     lines.append("依赖最多 (fan-out):")
@@ -109,7 +118,7 @@ def render_heat_matrix(ctx: VerifyContext) -> str:
         label = modules[m].get("label", m)
         bar = "█" * min(cnt * 2, 20)
         lines.append(
-            f"  {pad_str(label, row_w)} {_colorize(bar, 'assurance', ctx.color)} ({cnt})"
+            f"  {pad_str(label, row_w)} {_colorize(bar, 'assurance', _palette(ctx))} ({cnt})"
         )
 
     return "\n".join(lines)

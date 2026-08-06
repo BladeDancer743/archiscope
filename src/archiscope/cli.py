@@ -95,8 +95,16 @@ def main():
         metavar="FILE",
         help="Validated semantic preview overlay; never changes the blueprint",
     )
+    render_cmd.add_argument(
+        "--theme",
+        default="default",
+        help="Color theme (default: default; run 'archiscope list-themes')",
+    )
     # list-strategies
     sub.add_parser("list-strategies", help="List all available render strategies")
+
+    # list-themes
+    sub.add_parser("list-themes", help="List all available color themes")
 
     # validate
     val_cmd = sub.add_parser("validate", help="Validate .archmap.yaml format")
@@ -190,7 +198,11 @@ def main():
                 output = render(data, args.path, args.zoom, depth)
             elif args.strategy != "overview":
                 output = geometry_render(
-                    data, args.path, args.strategy, color=args.color or "auto"
+                    data,
+                    args.path,
+                    args.strategy,
+                    color=args.color or "auto",
+                    theme=args.theme,
                 )
             else:
                 output = render_terminal(
@@ -202,6 +214,7 @@ def main():
                     charset=args.charset or "auto",
                     width=args.width,
                     semantic_overlay=overlay,
+                    theme=args.theme,
                     stream=sys.stdout,
                 )
             print(output)
@@ -234,6 +247,9 @@ def main():
 
     elif args.command == "list-strategies":
         _list_strategies()
+
+    elif args.command == "list-themes":
+        _list_themes()
 
     elif args.command == "semantics" and args.semantics_command == "audit":
         try:
@@ -320,6 +336,14 @@ def _list_strategies():
     print("可用渲染策略:\n")
     for key, (name, desc) in STRATEGY_INFO.items():
         print(f"  {key:16s} {name:8s}  {desc}")
+
+
+def _list_themes():
+    from .render.ansi import THEMES
+
+    print("可用配色主题:\n")
+    for name, theme in THEMES.items():
+        print(f"  {name:12s} {theme.description}")
 
 
 def _load_archmap_at(path: str | None) -> dict:

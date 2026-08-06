@@ -48,6 +48,7 @@ Agent 调用 CLI 时 stdout 是管道，`--color auto` 会按非 TTY 自动关�
 | `archiscope render "{path}" --format mermaid` | 使用 0.5.x 的 Mermaid 输出方式 |
 | `archiscope render "{path}" --strategy {名称}` | 指定终端视图形态（默认 `overview`） |
 | `archiscope render "{path}" --color MODE` | `auto`、`always` 或 `never`，控制 ANSI 前景色 |
+| `archiscope render "{path}" --theme NAME` | 配色主题（`archiscope list-themes` 查看全部） |
 | `archiscope render "{path}" --charset SET` | `auto`、`unicode` 或 `ascii`，控制字符集 |
 | `archiscope render "{path}" --width N` | 按指定终端列宽布局 |
 | `archiscope render "{path}" --semantic-overlay FILE` | 只预览临时语义提案，不修改蓝图 |
