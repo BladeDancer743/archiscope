@@ -1091,7 +1091,16 @@ def _layer_box_rows(
     if not paths:
         return [], {}
     gap = 3
-    minimum_box_width = 24
+    # The frame content is "● [FAMILY] label ▾N"; per-row packing must size
+    # from the semantic prefix plus the widest label, or the prefix eats
+    # the label space and truncates it (the classic budget bug).
+    semantic_prefix = 12
+    expansion = 4
+    widest_label = max(
+        (str_width(data["modules"][path].get("label", path)) for path in paths),
+        default=0,
+    )
+    minimum_box_width = widest_label + semantic_prefix + expansion + 4
     per_row = max(1, (width + gap) // (minimum_box_width + gap))
     lines: list[_Text] = []
     spans: dict[str, tuple[int, int]] = {}
@@ -1102,13 +1111,14 @@ def _layer_box_rows(
         # instead of a full-width bar; multi-module rows share the width.
         if len(chunk) == 1:
             label = data["modules"][chunk[0]].get("label", chunk[0])
-            semantic_prefix = 12  # "● [FAMILY] " inside the frame
-            expansion = 4  # " ▾N" expandable marker
             box_width = min(
                 max(str_width(label) + semantic_prefix + expansion + 4, 20), width - 4
             )
         else:
-            box_width = max(16, (width - gap * (len(chunk) - 1)) // len(chunk))
+            box_width = max(
+                widest_label + semantic_prefix + expansion + 4,
+                (width - gap * (len(chunk) - 1)) // len(chunk),
+            )
         rendered = [
             _module_box(
                 data,
