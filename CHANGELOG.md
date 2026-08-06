@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Color themes: `--theme NAME` and `archiscope list-themes` with ten truecolor (24-bit) palettes — `default` (Tailwind 500-level), `monokai`, `solarized`, `dracula`, `nord`, `crt-green`, `crt-amber`, `synthwave`, `gruvbox`, `tokyonight`. Every semantic role has a distinct color; themes are shared by the terminal overview and all geometry strategies.
+- Design-assistance coloring via `--color-by type|feature|heat`: structure, semantic responsibility family (gray for unclassified), or coupling heat. Semantic rule violations (cycles, asymmetry, contract drift, type inversion, dead edges) always override with the assurance color and dashed frames, so architecture problems stand out immediately.
+- Chain-row layout: graphs whose layers each hold ≤2 modules with direct cross-layer edges and no skipping render as one compact horizontal row with arrows and dotted projected markers instead of stacked full-width frames.
+- Nested engine frames (`--depth ≥ 2`): child modules render inside the engine frame with complete single-line labels (width sized by the widest child), internal relations drawn between blocks, and same-layer cross-frame child links drawn as connectors through the box gap.
+- Blueprint cross-zone bus: the INBOUND→HUB→OUTBOUND connectors aggregate real cross-zone edges with `xN` counts and bidirectional markers instead of template arrows.
+- Per-agent terminal channel adaptation in installed skills (color/width recommendations per host).
+
+### Changed
+
+- Frames never truncate or wrap labels: all width budgets account for the `● [FAMILY] ` semantic prefix and the `▾N` expansion marker — multi-module rows, lone-module frames, chain rows and nested blocks are all covered.
+- The geometry verify/correct pipeline only adopts a relayout when it strictly reduces violations; `flow`/`minimal` render their own deliberate routing without destructive incremental fixes.
+- Geometry edge routing: vertical arrowheads stop above the target frame, same-row edges stay in inter-box gaps, and non-adjacent rows detour through the gap row — no line pierces a box.
+- The terminal overview draws route-lane connectors (tee on the target frame top/bottom) and keeps every row within the requested width.
+
+### Fixed
+
+- G4 frame-closure corner math (Rect `right`/`bottom` are exclusive), which previously flagged every intact box as broken and sent `correct()` into a destructive full relayout.
+- CJK display-width handling across cards/class_diagram multi-column layouts, chain-row arrows, child block padding and balanced line breaks.
+- Trailing blank rows from fixed-height char grids; ANSI color runs compressed to at most two segments per row for renderers that mis-measure three-plus switches.
+
 ## [0.6.0] - 2026-08-04
 
 ### Added
