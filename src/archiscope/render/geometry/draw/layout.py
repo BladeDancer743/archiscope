@@ -7,7 +7,6 @@ intermediate columns, so lines never pierce boxes.
 """
 
 from ...ansi import TYPE_COLOR, heat_style, resolve_theme
-from ..correct.engine import correct
 from ..verify.rules import VerifyContext
 from .grid import ARROW_RIGHT, CharGrid, split_lines, str_width, truncate_str
 
@@ -301,23 +300,14 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
             grid.put(mx, my, marker, edge_color)
             legend.append(f"  {marker}. {e['label']}")
 
-    # Verify + correct the finished geometry. Groups are not drawn in this
-    # view, so group-based rules (S4, G0e) do not apply here.
-    vctx = VerifyContext(
-        grid=grid,
-        boxes=boxes,
-        edges=edges,
-        groups={},
-        modules=ctx.modules,
-        terminal_width=ctx.terminal_width,
-        focus=ctx.focus,
-        color=ctx.color,
-    )
-    result = correct(vctx)
+    # No verify/correct here: the Sugiyama routing is already deliberate,
+    # and correct()'s incremental fixes (shift/resize/reroute) redraw boxes
+    # without labels, destroying the diagram on dense graphs. The
+    # design-assistance rules still run in geometry_render for coloring.
     out = (
-        result.grid.render_ansi(resolve_theme(ctx.theme).colors)
+        grid.render_ansi(resolve_theme(ctx.theme).colors)
         if ctx.color
-        else result.grid.render()
+        else grid.render()
     )
     if legend:
         out += "\n" + "\n".join(legend)

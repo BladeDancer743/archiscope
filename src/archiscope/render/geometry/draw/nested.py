@@ -127,14 +127,26 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
             edge_color = (
                 "assurance" if (fr, to) in ctx.edge_issues else _module_color(ctx, fr)
             )
-            if abs(r1.x - r2.x) < 10:
-                # Vertical edge
-                grid.draw_arrow_v(r1.x + r1.w // 2, r1.bottom, r2.y, color=edge_color)
-            else:
-                # Horizontal edge
+            if r1.y == r2.y and abs(r1.x - r2.x) <= r1.w + 2:
+                # Adjacent same-row edge: run through the row's inter-box gap.
                 grid.draw_arrow_h(r1.right, r2.x, mid_y1, color=edge_color)
                 if label:
                     grid.put_str(r1.right + 2, mid_y1 - 1, label, color=edge_color)
+            elif r1.y == r2.y:
+                # Same row but with boxes in between — detour through the
+                # gap row below the frames so the line never pierces them.
+                grid.draw_arrow_h(r1.right, r2.x, r1.bottom + 1, color=edge_color)
+                if label:
+                    grid.put_str(r1.right + 2, r1.bottom, label, color=edge_color)
+            else:
+                # Cross-row edge — the arrowhead stops one row above the
+                # target frame so it never overwrites the frame's top line.
+                grid.draw_arrow_v(
+                    r1.x + r1.w // 2,
+                    r1.bottom,
+                    max(r1.bottom + 1, r2.y - 1),
+                    color=edge_color,
+                )
             edge["line_cells"] = []
 
     # Run verify + correct. Only *declared* groups (from the archmap) are

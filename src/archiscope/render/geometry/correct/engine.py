@@ -128,12 +128,19 @@ def correct(ctx: VerifyContext, max_iterations: int = MAX_ITERATIONS) -> Correct
     final_violations = verify(final_ctx)
 
     if has_critical(final_violations):
-        # Try full relayout as last resort
+        # Try full relayout as last resort — but only adopt it when it
+        # actually reduces the violations. A rebuild that still pierces
+        # boxes (e.g. compact layout drawing edges across rows) is worse
+        # than the original diagram, so the last good grid is kept.
         try:
-            current_grid, current_boxes = relayout.relayout(final_ctx)
-            applied_fixes.append("relayout: full rebuild")
-            final_ctx = _make_ctx(current_grid, current_boxes, current_edges, ctx)
-            final_violations = verify(final_ctx)
+            new_grid, new_boxes = relayout.relayout(final_ctx)
+            new_ctx = _make_ctx(new_grid, new_boxes, current_edges, ctx)
+            new_violations = verify(new_ctx)
+            if len(new_violations) < len(final_violations):
+                current_grid, current_boxes = new_grid, new_boxes
+                final_ctx = new_ctx
+                final_violations = new_violations
+                applied_fixes.append("relayout: full rebuild")
         except Exception:
             pass
 
