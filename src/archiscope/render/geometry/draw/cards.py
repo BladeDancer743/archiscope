@@ -3,7 +3,7 @@
 Fits more modules on screen than the nested layout.
 """
 
-from ..draw.grid import pad_str, truncate_str
+from ..draw.grid import pad_str, str_width, truncate_str
 from ..verify.rules import VerifyContext
 
 
@@ -75,10 +75,17 @@ def render_cards(ctx: VerifyContext) -> str:
 
 
 def _set_line(lines: list, idx: int, x0: int, content: str):
-    """Set content at line index, extending or padding as needed."""
+    """Set content at line index, extending or padding as needed.
+
+    x0 is a display column; existing lines may hold CJK whose display width
+    exceeds their Python character count, so padding must use str_width.
+    Content is always built as ``" " * x0 + rest``, so its ASCII prefix slices
+    off cleanly at character index x0.
+    """
     while len(lines) <= idx:
         lines.append("")
     existing = lines[idx]
-    if len(existing) < x0:
-        existing = existing.ljust(x0)
-    lines[idx] = existing + content[x0:] if len(existing) >= x0 else content
+    existing_w = str_width(existing)
+    if existing_w < x0:
+        existing += " " * (x0 - existing_w)
+    lines[idx] = existing + content[x0:]

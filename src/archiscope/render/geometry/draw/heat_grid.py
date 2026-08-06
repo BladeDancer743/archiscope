@@ -4,6 +4,7 @@ Rows = producers (from modules), Columns = consumers (to modules).
 █ = high coupling (5+ edges), ▓ = medium (3-4), ▒ = low (2), ░ = trace (1), · = none.
 """
 
+from ...ansi import ANSI_COLORS
 from ..draw.grid import (
     BLOCK_DARK,
     BLOCK_DOT,
@@ -14,6 +15,25 @@ from ..draw.grid import (
     str_width,
 )
 from ..verify.rules import VerifyContext
+
+
+def _heat_color(count: int) -> str | None:
+    """Color key for a coupling level: hot cells stand out."""
+    if count >= 5:
+        return "assurance"
+    if count >= 3:
+        return "command"
+    if count >= 2:
+        return "compute"
+    if count >= 1:
+        return "reference"
+    return None
+
+
+def _colorize(value: str, key: str | None, use_color: bool) -> str:
+    if not use_color or not key:
+        return value
+    return f"\x1b[{ANSI_COLORS[key]}m{value}\x1b[0m"
 
 
 def render_heat_matrix(ctx: VerifyContext) -> str:
@@ -68,7 +88,7 @@ def render_heat_matrix(ctx: VerifyContext) -> str:
                 ch = BLOCK_LIGHT * count
             else:
                 ch = BLOCK_DOT
-            row.append(pad_str(ch, col_w))
+            row.append(pad_str(_colorize(ch, _heat_color(count), ctx.color), col_w))
         lines.append("".join(row))
 
     # Hotspot ranking
@@ -79,13 +99,17 @@ def render_heat_matrix(ctx: VerifyContext) -> str:
     for m, cnt in top_in:
         label = modules[m].get("label", m)
         bar = "█" * min(cnt * 2, 20)
-        lines.append(f"  {pad_str(label, row_w)} {bar} ({cnt})")
+        lines.append(
+            f"  {pad_str(label, row_w)} {_colorize(bar, 'assurance', ctx.color)} ({cnt})"
+        )
 
     lines.append("依赖最多 (fan-out):")
     top_out = sorted(out_degree.items(), key=lambda x: -x[1])[:3]
     for m, cnt in top_out:
         label = modules[m].get("label", m)
         bar = "█" * min(cnt * 2, 20)
-        lines.append(f"  {pad_str(label, row_w)} {bar} ({cnt})")
+        lines.append(
+            f"  {pad_str(label, row_w)} {_colorize(bar, 'assurance', ctx.color)} ({cnt})"
+        )
 
     return "\n".join(lines)

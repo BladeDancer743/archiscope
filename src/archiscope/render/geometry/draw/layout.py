@@ -6,6 +6,8 @@ routing with per-gap lanes. Long edges pass through corridor rows in the
 intermediate columns, so lines never pierce boxes.
 """
 
+from ...ansi import ANSI_COLORS, TYPE_COLOR
+from ..correct.engine import correct
 from ..verify.rules import VerifyContext
 from .grid import ARROW_RIGHT, CharGrid, split_lines, str_width, truncate_str
 
@@ -161,9 +163,10 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
         for n, lines in entries:
             h = len(lines) + 2
             box_style = "double" if n == focus else "single"
-            rect = grid.draw_rect(col_x[ci], y, w, h, style=box_style)
+            color = "focus" if n == focus else TYPE_COLOR.get(modules[n].get("type", "module"))
+            rect = grid.draw_rect(col_x[ci], y, w, h, style=box_style, color=color)
             for r, line in enumerate(lines):
-                grid.draw_label(col_x[ci] + 1, y + 1 + r, w - 2, line)
+                grid.draw_label(col_x[ci] + 1, y + 1 + r, w - 2, line, color=color)
             boxes[n] = rect
             y += h + BOX_SPACING
 
@@ -190,18 +193,18 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
             lane = left + 1 + (lane_used[c1 + 1] % max(1, right - left - 2))
             lane_used[c1 + 1] += 1
             for xx in range(r1.right, lane + 1):
-                grid.put(xx, sy, "─")
+                grid.put(xx, sy, "─", "edge")
                 cells.append((xx, sy))
             lo, hi = sorted((sy, ty))
             for yy in range(lo, hi + 1):
-                grid.put(lane, yy, "│")
+                grid.put(lane, yy, "│", "edge")
                 cells.append((lane, yy))
-            grid.put(lane, sy, "┐" if ty > sy else "┘")
-            grid.put(lane, ty, "└" if ty > sy else "┌")
+            grid.put(lane, sy, "┐" if ty > sy else "┘", "edge")
+            grid.put(lane, ty, "└" if ty > sy else "┌", "edge")
             for xx in range(r2.right + 1, lane):
-                grid.put(xx, ty, "─")
+                grid.put(xx, ty, "─", "edge")
                 cells.append((xx, ty))
-            grid.put(r2.right, ty, "◀")
+            grid.put(r2.right, ty, "◀", "edge")
         else:
             step = 1 if c2 > c1 else -1
             cur_y = sy
@@ -220,19 +223,19 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
                 x_from, x_to = (start_x, lane) if step == 1 else (lane, start_x)
                 for xx in range(min(x_from, x_to), max(x_from, x_to) + 1):
                     if grid.get(xx, cur_y) == " ":
-                        grid.put(xx, cur_y, "─")
+                        grid.put(xx, cur_y, "─", "edge")
                     cells.append((xx, cur_y))
                 # vertical on the lane
                 if nxt_y != cur_y:
-                    grid.put(lane, cur_y, "┐" if step == 1 else "┌")
+                    grid.put(lane, cur_y, "┐" if step == 1 else "┌", "edge")
                     lo, hi = sorted((cur_y, nxt_y))
                     for yy in range(lo + 1, hi):
-                        grid.put(lane, yy, "│")
+                        grid.put(lane, yy, "│", "edge")
                         cells.append((lane, yy))
-                    grid.put(lane, nxt_y, "└" if nxt_y > cur_y else "┌")
+                    grid.put(lane, nxt_y, "└" if nxt_y > cur_y else "┌", "edge")
                     if step == -1:
-                        grid.put(lane, cur_y, "┘" if nxt_y < cur_y else "┐")
-                        grid.put(lane, nxt_y, "└" if nxt_y < cur_y else "┌")
+                        grid.put(lane, cur_y, "┘" if nxt_y < cur_y else "┐", "edge")
+                        grid.put(lane, nxt_y, "└" if nxt_y < cur_y else "┌", "edge")
                 cur_y = nxt_y
                 # continue from the lane across the next column corridor
                 if not last:
@@ -242,30 +245,43 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
                     # corridor: only draw across free cells (between boxes)
                     for xx in range(x_from, x_to + 1):
                         if grid.get(xx, cur_y) == " ":
-                            grid.put(xx, cur_y, "─")
+                            grid.put(xx, cur_y, "─", "edge")
                         cells.append((xx, cur_y))
                     start_x = ncx + ncw if step == 1 else ncx - 1
                 else:
                     # final approach into the target box
                     if step == 1:
                         for xx in range(lane + 1, r2.x - 1):
-                            grid.put(xx, ty, "─")
+                            grid.put(xx, ty, "─", "edge")
                             cells.append((xx, ty))
-                        grid.put(r2.x - 1, ty, ARROW_RIGHT)
+                        grid.put(r2.x - 1, ty, ARROW_RIGHT, "edge")
                     else:
                         for xx in range(r2.right + 1, lane):
-                            grid.put(xx, ty, "─")
+                            grid.put(xx, ty, "─", "edge")
                             cells.append((xx, ty))
-                        grid.put(r2.right, ty, "◀")
+                        grid.put(r2.right, ty, "◀", "edge")
 
         e["line_cells"] = cells
         if style == "flow" and e.get("label"):
             marker = str(len(legend) + 1)
             mx, my = cells[len(cells) // 2] if cells else (0, 0)
-            grid.put(mx, my, marker)
+            grid.put(mx, my, marker, "edge")
             legend.append(f"  {marker}. {e['label']}")
 
-    out = grid.render()
+    # Verify + correct the finished geometry. Groups are not drawn in this
+    # view, so group-based rules (S4, G0e) do not apply here.
+    vctx = VerifyContext(
+        grid=grid,
+        boxes=boxes,
+        edges=edges,
+        groups={},
+        modules=ctx.modules,
+        terminal_width=ctx.terminal_width,
+        focus=ctx.focus,
+        color=ctx.color,
+    )
+    result = correct(vctx)
+    out = result.grid.render_ansi(ANSI_COLORS) if ctx.color else result.grid.render()
     if legend:
         out += "\n" + "\n".join(legend)
     return out

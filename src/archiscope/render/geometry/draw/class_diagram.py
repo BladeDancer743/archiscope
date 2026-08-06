@@ -1,6 +1,6 @@
 """Class diagram renderer — each module as a UML-style class box with methods."""
 
-from ..draw.grid import pad_str, truncate_str
+from ..draw.grid import pad_str, str_width, truncate_str
 from ..verify.rules import VerifyContext
 
 
@@ -75,6 +75,7 @@ def _put_at(lines, idx, x0, content):
     while len(lines) <= idx:
         lines.append("")
     existing = lines[idx]
-    if len(existing) < x0:
-        existing = existing.ljust(x0)
-    lines[idx] = existing[:x0] + content[x0:]
+    existing_w = str_width(existing)
+    if existing_w < x0:
+        existing += " " * (x0 - existing_w)
+    lines[idx] = existing + content[x0:]

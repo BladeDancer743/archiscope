@@ -3,9 +3,18 @@
 All three strategies share the same underlying geometry: boxes inside boxes.
 """
 
+from ...ansi import ANSI_COLORS, TYPE_COLOR
 from ..correct.engine import correct
 from ..draw.grid import CharGrid, str_width
 from ..verify.rules import VerifyContext
+
+
+def _module_color(ctx: VerifyContext, mid: str) -> str | None:
+    """Frame color for one module: focus highlight wins, then type color."""
+    if mid == ctx.focus:
+        return "focus"
+    module_type = ctx.modules.get(mid, {}).get("type", "module")
+    return TYPE_COLOR.get(module_type)
 
 
 def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
@@ -34,8 +43,7 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
     group_boxes = {}
 
     for group_name, members in groups.items():
-        group_cfg = modules.get(group_name, {})
-        label = group_cfg.get("label", group_name)
+        label = ctx.group_labels.get(group_name, group_name)
         member_count = len(members)
         if member_count == 0:
             continue
@@ -48,10 +56,11 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
         group_w = col_count * (box_w + 2) + 2
         group_h = row_count * 6 + 4
 
-        # Draw group box
+        # Draw group box; the label goes one row inside the top border so
+        # the frame stays closed (G4_frame_closure).
         box_style = "double" if style == "grouped" else "single"
-        gr = grid.draw_rect(2, y, group_w, group_h, style=box_style)
-        grid.draw_label(4, y, group_w - 4, label)
+        gr = grid.draw_rect(2, y, group_w, group_h, style=box_style, color="boundary")
+        grid.draw_label(4, y + 1, group_w - 4, label, color="boundary")
         group_boxes[group_name] = gr
 
         # Draw members inside
@@ -61,8 +70,9 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
             mx = 4 + col * (box_w + 2)
             my = y + 2 + row * 6
             ml = modules.get(mid, {}).get("label", mid)
-            mr = grid.draw_rect(mx, my, box_w, 4)
-            grid.draw_label(mx + 1, my + 2, box_w - 2, ml)
+            color = _module_color(ctx, mid)
+            mr = grid.draw_rect(mx, my, box_w, 4, color=color)
+            grid.draw_label(mx + 1, my + 2, box_w - 2, ml, color=color)
             boxes[mid] = mr
 
         y += group_h + 2
@@ -77,23 +87,37 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
             r2.y + r2.h // 2
             if abs(r1.x - r2.x) < 10:
                 # Vertical edge
-                grid.draw_arrow_v(r1.x + r1.w // 2, r1.bottom, r2.y)
+                grid.draw_arrow_v(r1.x + r1.w // 2, r1.bottom, r2.y, color="edge")
             else:
                 # Horizontal edge
-                grid.draw_arrow_h(r1.right, r2.x, mid_y1)
+                grid.draw_arrow_h(r1.right, r2.x, mid_y1, color="edge")
                 if label:
-                    grid.put_str(r1.right + 2, mid_y1 - 1, label)
+                    grid.put_str(r1.right + 2, mid_y1 - 1, label, color="edge")
             edge["line_cells"] = []
 
-    # Run verify + correct
+    # Run verify + correct. Only *declared* groups (from the archmap) are
+    # verified — synthesized type-groups carry no YAML contract, so rules like
+    # S4_group_orphan / G0e_misaligned would flag every member for free.
     vctx = VerifyContext(
         grid=grid,
         boxes=boxes,
         edges=edges,
-        groups=groups,
+        groups=ctx.groups,
         modules=modules,
         terminal_width=terminal_w,
+        focus=ctx.focus,
+        color=ctx.color,
     )
     result = correct(vctx)
-
-    return result.grid.render()
+    rendered = (
+        result.grid.render_ansi(ANSI_COLORS) if ctx.color else result.grid.render()
+    )
+    if ctx.group_labels:
+        heading = "LANES / 泳道" if style == "swimlane" else "GROUPS / 分组"
+        legend = [heading]
+        for group_name, members in groups.items():
+            label = ctx.group_labels.get(group_name, group_name)
+            member_labels = [modules.get(member, {}).get("label", member) for member in members]
+            legend.append(f"  {label}: {', '.join(member_labels)}")
+        return "\n".join(legend) + "\n\n" + rendered
+    return rendered

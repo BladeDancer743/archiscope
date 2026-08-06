@@ -1,6 +1,6 @@
 """Verification rules — 25 checks across geometry, semantic, and CJK domains."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
@@ -36,6 +36,8 @@ class VerifyContext:
     modules: dict  # raw YAML module data
     terminal_width: int = 80
     focus: Optional[str] = None  # module the view is centered on (double border)
+    group_labels: dict[str, str] = field(default_factory=dict)
+    color: bool = False  # render ANSI colors via grid.render_ansi
 
 
 # ═══════════════════════════════════════════════════════════
@@ -114,11 +116,13 @@ def check_frame_closure(ctx: VerifyContext) -> list[Violation]:
     """G4: Box-drawing characters paired correctly (╔...╗, ┌...┐)."""
     violations = []
     for mid, rect in ctx.boxes.items():
+        # Rect.right/bottom are exclusive (one past the last cell);
+        # the actual corner characters live at x+w-1 / y+h-1.
         corners = [
             (rect.x, rect.y),
-            (rect.right, rect.y),
-            (rect.x, rect.bottom),
-            (rect.right, rect.bottom),
+            (rect.x + rect.w - 1, rect.y),
+            (rect.x, rect.y + rect.h - 1),
+            (rect.x + rect.w - 1, rect.y + rect.h - 1),
         ]
         for cx, cy in corners:
             ch = ctx.grid.get(cx, cy)
