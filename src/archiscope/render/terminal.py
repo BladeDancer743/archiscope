@@ -1673,14 +1673,60 @@ def _render_chain_row(
             return _Text.styled(f"{shaft}[{edge.kind}]{shaft}{arrow}", edge.family)
         return _Text.styled(f"{shaft}{arrow}", edge.family)
 
-    # Cross-engine child links, drawn only between adjacent layers when the
-    # source and target child rows align — a clean horizontal connector.
-    # Non-aligned links fall back to the text list below.
-    gap_links: dict[tuple[int, int], list[int]] = {}  # (gap, source box) → rows
+    # Box x positions: (layer, box) → left column, so cross-engine child
+    # links can anchor their connectors on the actual frame borders.
+    box_x: dict[tuple[int, int], int] = {}
+    x = 2
+    for layer_index, layer in enumerate(chain_layers):
+        for box_index in range(len(layer)):
+            box_x[(layer_index, box_index)] = x
+            x += box_w
+        x += 3  # gap between layers
+
+    # Route every cross-engine child link. A link whose source and target
+    # rows align — and whose row does not cross any intermediate engine
+    # frame — is a plain horizontal connector; anything else detours on a
+    # dedicated track row below the chain (down from the source, across,
+    # up into the target).
+    routes: list[dict] = []
     for (src_layer, src_box), links in cross_links.items():
+        src_right = box_x[(src_layer, src_box)] + box_w - 1
         for target_layer, target_box, target_row, source_row in links:
-            if target_layer == src_layer + 1 and source_row == target_row:
-                gap_links.setdefault((src_layer, src_box), []).append(source_row)
+            if target_layer <= src_layer:
+                continue
+            tgt_left = box_x[(target_layer, target_box)]
+            blocked = any(
+                box_x[(mid_layer, mid_box)] + box_w - 1 > src_right
+                and box_x[(mid_layer, mid_box)] < tgt_left
+                and mid_layer not in (src_layer, target_layer)
+                and any(
+                    isinstance(box_x.get((mid_layer, mid_box)), int)
+                    and 0 <= source_row < len(engine_boxes[mid_layer][mid_box])
+                    for mid_box in range(len(chain_layers[mid_layer]))
+                )
+                for mid_layer in range(src_layer + 1, target_layer)
+                for mid_box in range(len(chain_layers[mid_layer]))
+            )
+            if source_row == target_row and not blocked:
+                routes.append(
+                    {
+                        "row": source_row,
+                        "from": src_right + 1,
+                        "to": tgt_left - 1,
+                        "horizontal": True,
+                    }
+                )
+            else:
+                routes.append(
+                    {
+                        "row": source_row,
+                        "target_row": target_row,
+                        "from": src_right + 1,
+                        "to": tgt_left - 1,
+                        "track": height,
+                    }
+                )
+                height += 1
 
     lines: list[_Text] = []
     for line_index in range(height):
@@ -1688,29 +1734,60 @@ def _render_chain_row(
         for layer_index, layer in enumerate(chain_layers):
             if layer_index:
                 previous = chain_layers[layer_index - 1]
-                gap = ""
-                for src_box in range(len(previous)):
-                    if line_index in gap_links.get((layer_index - 1, src_box), []):
-                        gap += "─▶"
-                if not gap:
-                    arrow_edge = next(
-                        (
-                            edge
-                            for edge in edges
-                            if edge.source in previous and edge.target in layer
-                        ),
-                        None,
-                    )
-                    gap = (
-                        chain_arrow(arrow_edge.source, arrow_edge.target).value
-                        if arrow_edge and line_index == 1
-                        else " " * 3
-                    )
+                arrow_edge = next(
+                    (
+                        edge
+                        for edge in edges
+                        if edge.source in previous and edge.target in layer
+                    ),
+                    None,
+                )
+                gap = (
+                    chain_arrow(arrow_edge.source, arrow_edge.target).value
+                    if arrow_edge and line_index == 1
+                    else " " * 3
+                )
                 row += _Text.plain(gap)
             for box_index, path in enumerate(layer):
                 box = engine_boxes[layer_index][box_index]
                 row += box[line_index].pad(box_w) if line_index < len(box) else _Text.plain(" " * box_w)
-        lines.append(row.truncate(width))
+        lines.append(row)
+
+    # Overlay the cross-engine connectors.
+    for route in routes:
+        if route.get("horizontal"):
+            line = lines[route["row"]]
+            for column in range(route["from"], route["to"] + 1):
+                if _char_at_column(line, column) == " ":
+                    line = _overlay_column(line, column, "─")
+            line = _overlay_column(line, route["to"], "▶")
+            lines[route["row"]] = line
+        else:
+            track = route["track"]
+            source = route["row"]
+            target = route["target_row"]
+            # drop from the source row into the track
+            for column in range(route["from"], route["to"] + 1):
+                pass
+            line = lines[source]
+            line = _overlay_column(line, route["from"], "─")
+            for row_index in range(source + 1, track + 1):
+                if _char_at_column(lines[row_index], route["from"]) == " ":
+                    lines[row_index] = _overlay_column(lines[row_index], route["from"], "│")
+            # track: horizontal run into the target column
+            line = lines[track]
+            for column in range(route["from"] + 1, route["to"] + 1):
+                if _char_at_column(line, column) == " ":
+                    line = _overlay_column(line, column, "─")
+            line = _overlay_column(line, route["to"], "▶")
+            lines[track] = line
+            # rise into the target row
+            step = 1 if target > track else -1
+            for row_index in range(track, target, step):
+                if _char_at_column(lines[row_index], route["to"]) == " ":
+                    lines[row_index] = _overlay_column(lines[row_index], route["to"], "│")
+            if _char_at_column(lines[target], route["to"]) == " ":
+                lines[target] = _overlay_column(lines[target], route["to"], "┘")
     return lines
 
 
