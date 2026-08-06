@@ -1360,13 +1360,6 @@ def _render_vertical_layered_topology(
                 depth,
             )
         )
-        cross_links = _cross_engine_child_links(data, chain_layers)
-        for source_label, target_label, family, count in cross_links:
-            lines.append(
-                _Text.plain("  子模块链接: ")
-                + _Text.styled(f"{source_label} ─▶ {target_label}", family)
-                + (_Text.plain(f" x{count}") if count > 1 else _Text.plain(""))
-            )
         feedback: dict[tuple[str, str], int] = {}
         for edge in topology_edges:
             if ranks.get(edge.target, 0) < ranks.get(edge.source, 0):
@@ -1696,6 +1689,7 @@ def _render_chain_row(
     # Cross-engine child links anchored to block rows: for every gap,
     # (source box, source row) → (target box, target row).
     cross_links: dict[tuple[int, int], list[tuple[int, int, str]]] = {}
+    drawn_links: set[tuple[str, str]] = set()  # (child, target) drawn as lines
     chain_engines = [path for layer in chain_layers for path in layer]
 
     def engine_of(path: str) -> str | None:
@@ -1718,7 +1712,10 @@ def _render_chain_row(
                         continue
                     for other_index, other_layer in enumerate(chain_layers):
                         for other_box, other_engine in enumerate(other_layer):
-                            if other_engine == owner and other_index > layer_index:
+                            if other_engine == owner and (
+                                other_index > layer_index
+                                or (other_index == layer_index and other_box > box_index)
+                            ):
                                 target_rows = block_rows.get((other_index, other_box), {})
                                 target_row = target_rows.get(target)
                                 if target_row is None:
@@ -1726,6 +1723,7 @@ def _render_chain_row(
                                 cross_links.setdefault((layer_index, box_index), []).append(
                                     (other_index, other_box, target_row, child_row)
                                 )
+                                drawn_links.add((child, target))
                                 break
 
     def chain_arrow(source: str, target: str) -> _Text:
@@ -1742,12 +1740,17 @@ def _render_chain_row(
 
     # Box x positions: (layer, box) → left column, so cross-engine child
     # links can anchor their connectors on the actual frame borders.
+    # Boxes within a layer keep a gap too — same-layer cross-frame child
+    # links (e.g. Concierge → Probe) need a lane to draw through.
+    inner_gap = 3
     box_x: dict[tuple[int, int], int] = {}
     x = 2
     for layer_index, layer in enumerate(chain_layers):
         for box_index in range(len(layer)):
             box_x[(layer_index, box_index)] = x
             x += box_w
+            if box_index < len(layer) - 1:
+                x += inner_gap
         x += 3  # gap between layers
 
     lines: list[_Text] = []
@@ -1771,6 +1774,10 @@ def _render_chain_row(
                 )
                 row += _Text.plain(gap)
             for box_index, path in enumerate(layer):
+                if box_index:
+                    # gap lane between boxes of the same layer, used by
+                    # same-layer cross-frame child links
+                    row += _Text.plain(" " * inner_gap)
                 box = engine_boxes[layer_index][box_index]
                 if line_index < len(box) - 1:
                     # content rows, top-aligned
@@ -1801,8 +1808,10 @@ def _render_chain_row(
     for (src_layer, src_box), links in cross_links.items():
         src_right = box_x[(src_layer, src_box)] + box_w - 1
         for target_layer, target_box, target_row, source_row in links:
-            if target_layer <= src_layer:
+            if target_layer < src_layer:
                 continue
+            if target_layer == src_layer and target_box <= src_box:
+                continue  # same-layer links only run left → right
             tgt_left = box_x[(target_layer, target_box)]
             column = src_right + 1 + (lane % 2)
             lane += 1
@@ -1823,6 +1832,31 @@ def _render_chain_row(
                     lines[target_row] = _overlay_column(lines[target_row], column_x, "─")
             if _char_at_column(lines[target_row], tgt_left - 1) in (" ", "┃"):
                 lines[target_row] = _overlay_column(lines[target_row], tgt_left - 1, "▶")
+
+    # Cross-engine child links that could not be drawn (e.g. a link running
+    # right-to-left inside the same layer) stay as an annotated list;
+    # everything drawable has already been drawn as a line.
+    undrawn: dict[tuple[str, str], int] = {}
+    modules_map = data["modules"]
+    for layer in chain_layers:
+        for engine in layer:
+            for child in modules_map[engine].get("children") or []:
+                if child not in modules_map:
+                    continue
+                for target in modules_map[child].get("downstream") or []:
+                    if target not in modules_map or (child, target) in drawn_links:
+                        continue
+                    owner = engine_of(target)
+                    if owner and owner != engine:
+                        undrawn[(child, target)] = undrawn.get((child, target), 0) + 1
+    for (source_path, target_path), count in sorted(undrawn.items()):
+        source_label = modules_map[source_path].get("label", source_path)
+        target_label = modules_map[target_path].get("label", target_path)
+        lines.append(
+            _Text.plain("  子模块链接: ")
+            + _Text.styled(f"{source_label} ─▶ {target_label}", "dependency")
+            + (_Text.plain(f" x{count}") if count > 1 else _Text.plain(""))
+        )
     return lines
 
 
