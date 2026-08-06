@@ -1102,7 +1102,10 @@ def _layer_box_rows(
         # instead of a full-width bar; multi-module rows share the width.
         if len(chunk) == 1:
             label = data["modules"][chunk[0]].get("label", chunk[0])
-            box_width = min(max(str_width(label) + 8, 16), width - 4)
+            semantic_prefix = 12  # "● [FAMILY] " inside the frame
+            box_width = min(
+                max(str_width(label) + semantic_prefix + 4, 20), width - 4
+            )
         else:
             box_width = max(16, (width - gap * (len(chunk) - 1)) // len(chunk))
         rendered = [
@@ -1310,7 +1313,12 @@ def _render_vertical_layered_topology(
     # layers are directly connected, e.g. Probe→Forge→Reach→…) render as one
     # compact horizontal row with arrows instead of six full-width frames —
     # the vertical stack of single boxes was low-density and hard to read.
-    if (
+    # Chain-row mode is only for strict pipelines: every layer holds ≤2
+    # modules, adjacent layers are directly connected, and — crucially — no
+    # edge skips a layer. A mesh (each module talking to several others
+    # across layers, e.g. the six-engine graph) must not be flattened into
+    # a line; it keeps the vertical layout with lanes and connectors.
+    chain_ok = (
         len(layers) > 1
         and all(len(layer) <= 2 for layer in layers)
         and all(
@@ -1321,7 +1329,12 @@ def _render_vertical_layered_topology(
             )
             for rank in range(len(layers) - 1)
         )
-    ):
+        and not any(
+            abs(ranks.get(edge.source, 0) - ranks.get(edge.target, 0)) > 1
+            for edge in topology_edges
+        )
+    )
+    if chain_ok:
         chain_layers = layers
         lines.append(_Text.styled(f"L0-L{len(chain_layers) - 1} 链式流", "heading"))
         lines.extend(
