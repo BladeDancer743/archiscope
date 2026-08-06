@@ -149,7 +149,9 @@ class ColorRenderTests(unittest.TestCase):
         data = sample_archmap()
         colored = geometry_render(data, "engine", "grouped", color="always")
         for line in colored.splitlines():
-            segments = len(re.findall(r"\x1b\[(?:1;)?38;5;\d+m", line))
+            segments = len(
+                re.findall(r"\x1b\[(?:1;)?38;(?:5;\d+|2;\d+;\d+;\d+)m", line)
+            )
             self.assertLessEqual(segments, 2, line[:80])
 
 
@@ -160,14 +162,14 @@ class DesignColorTests(unittest.TestCase):
     def test_color_by_feature_uses_family_colors(self):
         data = sample_archmap()  # no feature declarations → all neutral
         out = geometry_render(data, "engine", "grouped", color="always", color_by="feature")
-        self.assertIn("38;5;245", out)  # neutral gray
-        self.assertNotIn("38;5;35", out)  # type colors are not used
+        self.assertIn("38;2;100;116;139", out)  # neutral slate
+        self.assertNotIn("38;2;16;185;129", out)  # type colors are not used
 
     def test_color_by_heat_marks_hot_modules(self):
         data = sample_archmap()  # worker is in+out=2, source/sink=1
         out = geometry_render(data, "engine", "grouped", color="always", color_by="heat")
-        self.assertIn("38;5;220", out)  # hot module (compute)
-        self.assertIn("38;5;245", out)  # low coupling (reference)
+        self.assertIn("38;2;245;158;11", out)  # hot module (amber)
+        self.assertIn("38;2;148;163;184", out)  # low coupling (slate)
 
     def test_rule_violations_use_assurance_color(self):
         data = {
@@ -180,7 +182,7 @@ class DesignColorTests(unittest.TestCase):
             },
         }
         out = geometry_render(data, "all", "grouped", color="always")
-        self.assertIn("38;5;162", out)  # assurance on the asymmetric edge
+        self.assertIn("38;2;239;68;68", out)  # assurance red on the asymmetric edge
 
     def test_neutral_modules_render_dashed(self):
         data = sample_archmap()  # no feature declarations → unclassified

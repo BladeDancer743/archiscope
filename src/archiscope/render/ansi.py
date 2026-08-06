@@ -65,24 +65,27 @@ class Theme:
     type_colors: Mapping[str, str | None] = field(default_factory=dict)
 
 
-# ── Default theme — Okabe-Ito-inspired foreground-only colors. Structural
-#    glyphs and textual tags remain sufficient when colors are removed.
+# ── Default theme — Tailwind 500-level palette rendered as truecolor.
+#    One continuous hue wheel (blue → cyan → green → amber → orange →
+#    red → violet), uniform saturation and lightness, every semantic role
+#    a distinct color. Structural glyphs remain sufficient when colors
+#    are removed.
 DEFAULT_COLORS = {
-    "data": "38;5;33",
-    "command": "38;5;208",
-    "authority": "38;5;129",
-    "event": "38;5;35",
-    "reference": "38;5;245",
-    "orchestration": "38;5;37",
-    "compute": "38;5;220",
-    "state": "38;5;35",
-    "boundary": "38;5;44",
-    "delivery": "38;5;208",
-    "assurance": "38;5;162",
-    "neutral": "38;5;245",
-    "focus": "1;38;5;220",
-    "heading": "1;38;5;250",
-    "edge": "38;5;37",  # geometry relation lines
+    "data": "38;2;59;130;246",      # blue-500
+    "command": "38;2;249;115;22",   # orange-500
+    "authority": "38;2;139;92;246",  # violet-500
+    "event": "38;2;16;185;129",     # emerald-500
+    "reference": "38;2;148;163;184",  # slate-400
+    "orchestration": "38;2;6;182;212",  # cyan-500
+    "compute": "38;2;245;158;11",   # amber-500
+    "state": "38;2;20;184;166",     # teal-500
+    "boundary": "38;2;14;165;233",  # sky-500
+    "delivery": "38;2;244;63;94",   # rose-500
+    "assurance": "38;2;239;68;68",  # red-500 — violations
+    "neutral": "38;2;100;116;139",  # slate-500 — unclassified
+    "focus": "1;38;2;251;191;36",   # amber-400, bold
+    "heading": "1;38;2;226;232;240",  # slate-200, bold
+    "edge": "38;2;56;189;248",      # sky-400 — geometry relation lines
 }
 
 DEFAULT_TYPE_COLORS = {
@@ -98,78 +101,78 @@ DEFAULT_TYPE_COLORS = {
 
 # Monokai (background #272822): saturated orange/pink/green/cyan palette.
 MONOKAI_COLORS = {
-    "data": "38;5;81",       # cyan #66D9EF
-    "command": "38;5;208",   # orange #FD971F
-    "authority": "38;5;141",  # purple #AE81FF
-    "event": "38;5;148",     # green #A6E22E
-    "reference": "38;5;242",  # gray #75715E
-    "orchestration": "38;5;81",
-    "compute": "38;5;186",   # yellow #E6DB74
-    "state": "38;5;148",
-    "boundary": "38;5;81",
-    "delivery": "38;5;208",
-    "assurance": "38;5;161",  # pink #F92672
-    "neutral": "38;5;242",
-    "focus": "1;38;5;186",
-    "heading": "1;38;5;248",
-    "edge": "38;5;81",
+    "data": "38;2;120;222;232",
+    "command": "38;2;252;152;103",
+    "authority": "38;2;171;157;242",
+    "event": "38;2;169;220;118",
+    "reference": "38;2;117;113;94",
+    "orchestration": "38;2;102;217;239",
+    "compute": "38;2;255;216;102",
+    "state": "38;2;166;226;46",
+    "boundary": "38;2;94;217;225",
+    "delivery": "38;2;255;97;136",
+    "assurance": "38;2;249;38;114",
+    "neutral": "38;2;128;125;116",
+    "focus": "1;38;2;255;216;102",
+    "heading": "1;38;2;252;252;250",
+    "edge": "38;2;110;215;188",
 }
 
 # Solarized (dark background #002B36): low-contrast scientific palette.
 SOLARIZED_COLORS = {
-    "data": "38;5;68",       # blue #268BD2
-    "command": "38;5;167",   # orange #CB4B16
-    "authority": "38;5;62",  # violet #6C71C4
-    "event": "38;5;100",     # green #859900
-    "reference": "38;5;109",  # base0 #839496
-    "orchestration": "38;5;37",  # cyan #2AA198
-    "compute": "38;5;136",   # yellow #B58900
-    "state": "38;5;100",
-    "boundary": "38;5;37",
-    "delivery": "38;5;167",
-    "assurance": "38;5;160",  # red #DC322F
-    "neutral": "38;5;109",
-    "focus": "1;38;5;136",
-    "heading": "1;38;5;245",
-    "edge": "38;5;37",
+    "data": "38;2;38;139;210",
+    "command": "38;2;203;75;22",
+    "authority": "38;2;108;113;196",
+    "event": "38;2;133;153;0",
+    "reference": "38;2;147;161;161",
+    "orchestration": "38;2;42;161;152",
+    "compute": "38;2;181;137;0",
+    "state": "38;2;84;171;158",
+    "boundary": "38;2;42;160;181",
+    "delivery": "38;2;211;54;130",
+    "assurance": "38;2;220;50;47",
+    "neutral": "38;2;101;123;131",
+    "focus": "1;38;2;181;137;0",
+    "heading": "1;38;2;238;232;213",
+    "edge": "38;2;38;160;170",
 }
 
 # Dracula (background #282A36): purple/cyan/pink with high saturation.
 DRACULA_COLORS = {
-    "data": "38;5;117",      # cyan #8BE9FD
-    "command": "38;5;212",   # pink #FF79C6
-    "authority": "38;5;141",  # purple #BD93F9
-    "event": "38;5;84",      # green #50FA7B
-    "reference": "38;5;62",  # blue-gray #6272A4
-    "orchestration": "38;5;117",
-    "compute": "38;5;228",   # yellow #F1FA8C
-    "state": "38;5;84",
-    "boundary": "38;5;117",
-    "delivery": "38;5;212",
-    "assurance": "38;5;212",
-    "neutral": "38;5;62",
-    "focus": "1;38;5;228",
-    "heading": "1;38;5;252",
-    "edge": "38;5;117",
+    "data": "38;2;139;233;253",
+    "command": "38;2;255;184;108",
+    "authority": "38;2;189;147;249",
+    "event": "38;2;80;250;123",
+    "reference": "38;2;98;114;164",
+    "orchestration": "38;2;94;229;255",
+    "compute": "38;2;241;250;140",
+    "state": "38;2;61;224;160",
+    "boundary": "38;2;123;224;240",
+    "delivery": "38;2;255;121;198",
+    "assurance": "38;2;255;85;85",
+    "neutral": "38;2;68;71;90",
+    "focus": "1;38;2;241;250;140",
+    "heading": "1;38;2;248;248;242",
+    "edge": "38;2;107;228;224",
 }
 
 # Nord (background #2E3440): cold blue/cyan palette, low glare.
 NORD_COLORS = {
-    "data": "38;5;109",      # blue #81A1C1
-    "command": "38;5;173",   # orange #D08770
-    "authority": "38;5;139",  # purple #B48EAD
-    "event": "38;5;108",     # green #A3BE8C
-    "reference": "38;5;145",  # gray #D8DEE9
-    "orchestration": "38;5;110",  # cyan #88C0D0
-    "compute": "38;5;179",   # yellow #EBCB8B
-    "state": "38;5;108",
-    "boundary": "38;5;110",
-    "delivery": "38;5;173",
-    "assurance": "38;5;139",
-    "neutral": "38;5;145",
-    "focus": "1;38;5;179",
-    "heading": "1;38;5;255",
-    "edge": "38;5;110",
+    "data": "38;2;129;161;193",
+    "command": "38;2;208;135;112",
+    "authority": "38;2;180;142;173",
+    "event": "38;2;163;190;140",
+    "reference": "38;2;216;222;233",
+    "orchestration": "38;2;136;192;208",
+    "compute": "38;2;235;203;139",
+    "state": "38;2;150;184;160",
+    "boundary": "38;2;143;188;187",
+    "delivery": "38;2;217;139;95",
+    "assurance": "38;2;191;97;106",
+    "neutral": "38;2;76;86;106",
+    "focus": "1;38;2;235;203;139",
+    "heading": "1;38;2;236;239;244",
+    "edge": "38;2;127;184;200",
 }
 
 # ── CRT phosphor themes — monochrome tubes, intensity instead of hue ──
@@ -177,97 +180,97 @@ NORD_COLORS = {
 # P1 phosphor green (#33FF33 class).  Every semantic role is a green-family
 # shade; brightness and weight carry the distinction like a real terminal.
 CRT_GREEN_COLORS = {
-    "data": "38;5;48",       # phosphor green #00FF87
-    "command": "38;5;82",    # bright green #00FF5F
-    "authority": "38;5;112",  # yellow-green #87D700
-    "event": "38;5;154",     # lime #AFFF00
-    "reference": "38;5;41",  # dim green #00D75F
-    "orchestration": "38;5;48",
-    "compute": "38;5;190",   # pale yellow-green #D7FF00
-    "state": "38;5;154",
-    "boundary": "38;5;48",
-    "delivery": "38;5;82",
-    "assurance": "38;5;118",  # hot lime #87FF00
-    "neutral": "38;5;41",
-    "focus": "1;38;5;46",    # burning green, bold
-    "heading": "1;38;5;46",
-    "edge": "38;5;48",
+    "data": "38;2;0;255;135",
+    "command": "38;2;0;255;95",
+    "authority": "38;2;135;215;0",
+    "event": "38;2;175;255;0",
+    "reference": "38;2;0;215;95",
+    "orchestration": "38;2;51;255;102",
+    "compute": "38;2;215;255;0",
+    "state": "38;2;102;255;51",
+    "boundary": "38;2;0;230;118",
+    "delivery": "38;2;0;255;150",
+    "assurance": "38;2;135;255;0",
+    "neutral": "38;2;0;180;80",
+    "focus": "1;38;2;0;255;60",
+    "heading": "1;38;2;0;255;0",
+    "edge": "38;2;0;255;118",
 }
 
 # Amber phosphor (#FFB000 class) — the classic radar/terminal amber.
 CRT_AMBER_COLORS = {
-    "data": "38;5;214",      # amber #FFAF00
-    "command": "38;5;220",   # bright amber #FFD700
-    "authority": "38;5;178",  # mustard #D7AF00
-    "event": "38;5;228",     # pale amber #FFFF87
-    "reference": "38;5;172",  # dim amber #D78700
-    "orchestration": "38;5;214",
-    "compute": "38;5;221",   # light amber #FFD75F
-    "state": "38;5;228",
-    "boundary": "38;5;214",
-    "delivery": "38;5;220",
-    "assurance": "38;5;202",  # hot orange #FF5F00
-    "neutral": "38;5;172",
-    "focus": "1;38;5;221",
-    "heading": "1;38;5;228",
-    "edge": "38;5;214",
+    "data": "38;2;255;175;0",
+    "command": "38;2;255;215;0",
+    "authority": "38;2;215;175;0",
+    "event": "38;2;255;255;135",
+    "reference": "38;2;215;135;0",
+    "orchestration": "38;2;255;190;64",
+    "compute": "38;2;255;215;95",
+    "state": "38;2;240;200;64",
+    "boundary": "38;2;255;160;0",
+    "delivery": "38;2;255;220;130",
+    "assurance": "38;2;255;95;0",
+    "neutral": "38;2;180;120;20",
+    "focus": "1;38;2;255;215;95",
+    "heading": "1;38;2;255;228;181",
+    "edge": "38;2;255;185;40",
 }
 
 # Synthwave — neon magenta/cyan/purple on a deep blue-black tube.
 SYNTHWAVE_COLORS = {
-    "data": "38;5;45",       # neon cyan #00D7FF
-    "command": "38;5;207",   # hot pink #FF5FAF
-    "authority": "38;5;141",  # neon purple #AF87FF
-    "event": "38;5;123",     # electric cyan #87FFFF
-    "reference": "38;5;105",  # blue-violet #8787FF
-    "orchestration": "38;5;45",
-    "compute": "38;5;221",   # sunset yellow #FFD75F
-    "state": "38;5;123",
-    "boundary": "38;5;45",
-    "delivery": "38;5;207",
-    "assurance": "38;5;201",  # magenta #FF00FF
-    "neutral": "38;5;105",
-    "focus": "1;38;5;207",
-    "heading": "1;38;5;51",  # white-cyan #00FFFF
-    "edge": "38;5;45",
+    "data": "38;2;0;215;255",
+    "command": "38;2;255;95;175",
+    "authority": "38;2;175;135;255",
+    "event": "38;2;135;255;255",
+    "reference": "38;2;135;135;255",
+    "orchestration": "38;2;1;205;254",
+    "compute": "38;2;255;215;95",
+    "state": "38;2;5;255;161",
+    "boundary": "38;2;1;190;255",
+    "delivery": "38;2;255;113;206",
+    "assurance": "38;2;255;0;255",
+    "neutral": "38;2;100;90;160",
+    "focus": "1;38;2;255;113;206",
+    "heading": "1;38;2;0;255;255",
+    "edge": "38;2;0;224;255",
 }
 
 # Gruvbox dark (#282828) — warm, low-glare palette.
 GRUVBOX_COLORS = {
-    "data": "38;5;110",      # blue #83A598
-    "command": "38;5;208",   # orange #FE8019
-    "authority": "38;5;175",  # purple #D3869B
-    "event": "38;5;142",     # green #B8BB26
-    "reference": "38;5;244",  # gray #928374
-    "orchestration": "38;5;108",  # aqua #8EC07C
-    "compute": "38;5;214",   # yellow #FABD2F
-    "state": "38;5;142",
-    "boundary": "38;5;108",
-    "delivery": "38;5;208",
-    "assurance": "38;5;209",  # red #FB4934
-    "neutral": "38;5;244",
-    "focus": "1;38;5;214",
-    "heading": "1;38;5;251",
-    "edge": "38;5;108",
+    "data": "38;2;131;165;152",
+    "command": "38;2;254;128;25",
+    "authority": "38;2;211;134;155",
+    "event": "38;2;184;187;38",
+    "reference": "38;2;146;131;116",
+    "orchestration": "38;2;142;192;124",
+    "compute": "38;2;250;189;47",
+    "state": "38;2;152;196;86",
+    "boundary": "38;2;102;172;150",
+    "delivery": "38;2;251;73;52",
+    "assurance": "38;2;204;36;29",
+    "neutral": "38;2;124;111;100",
+    "focus": "1;38;2;250;189;47",
+    "heading": "1;38;2;235;219;178",
+    "edge": "38;2;156;192;138",
 }
 
 # Tokyo Night (#1A1B26) — cool blue-violet, high clarity.
 TOKYONIGHT_COLORS = {
-    "data": "38;5;69",       # blue #7AA2F7
-    "command": "38;5;209",   # orange-pink #FF9E64
-    "authority": "38;5;141",  # purple #BB9AF7
-    "event": "38;5;150",     # green #9ECE6A
-    "reference": "38;5;146",  # gray-blue #A9B1D6
-    "orchestration": "38;5;75",  # cyan #7DCFFF
-    "compute": "38;5;180",   # yellow #E0AF68
-    "state": "38;5;150",
-    "boundary": "38;5;75",
-    "delivery": "38;5;209",
-    "assurance": "38;5;204",  # pink #F7768E
-    "neutral": "38;5;146",
-    "focus": "1;38;5;180",
-    "heading": "1;38;5;254",
-    "edge": "38;5;75",
+    "data": "38;2;122;162;247",
+    "command": "38;2;255;158;100",
+    "authority": "38;2;187;154;247",
+    "event": "38;2;158;206;106",
+    "reference": "38;2;169;177;214",
+    "orchestration": "38;2;125;207;255",
+    "compute": "38;2;224;175;104",
+    "state": "38;2;110;218;120",
+    "boundary": "38;2;112;196;255",
+    "delivery": "38;2;247;118;142",
+    "assurance": "38;2;255;0;124",
+    "neutral": "38;2;59;66;82",
+    "focus": "1;38;2;224;175;104",
+    "heading": "1;38;2;192;202;245",
+    "edge": "38;2;122;197;255",
 }
 
 THEMES: dict[str, Theme] = {

@@ -75,7 +75,11 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
         # on one color run means every row is a single ANSI segment — some
         # terminal renderers mis-measure rows with three or more color
         # switches (CJK-aware width bugs).
-        member_colors = {c for m in members if (c := _module_color(ctx, m))}
+        member_colors = {
+            c
+            for m in members
+            if (c := _module_color(ctx, m)) and c != "assurance"
+        }
         group_color = next(iter(member_colors)) if len(member_colors) == 1 else "boundary"
 
         # Determine group box size

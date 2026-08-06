@@ -443,6 +443,13 @@ def geometry_render(
             parts = subject.split("→")
             if len(parts) == 2 and parts[0] in modules and parts[1] in modules:
                 edge_issues.add((parts[0], parts[1]))
+                # Flag both endpoints too: an asymmetric edge renders red
+                # alongside its frame, so the row stays a single color run
+                # (renderers mis-measure rows with 3+ ANSI switches).
+                for part in parts:
+                    issues.setdefault(part, [])
+                    if violation.rule_id not in issues[part]:
+                        issues[part].append(violation.rule_id)
 
     renderer = RENDERERS.get(effective_strategy)
     if renderer:
