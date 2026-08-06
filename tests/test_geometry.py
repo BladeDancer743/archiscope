@@ -153,6 +153,41 @@ class ColorRenderTests(unittest.TestCase):
             self.assertLessEqual(segments, 2, line[:80])
 
 
+class DesignColorTests(unittest.TestCase):
+    """Design-assistance coloring: feature view, heat view, rule-violation
+    assurance color, and dashed frames for unclassified semantics."""
+
+    def test_color_by_feature_uses_family_colors(self):
+        data = sample_archmap()  # no feature declarations → all neutral
+        out = geometry_render(data, "engine", "grouped", color="always", color_by="feature")
+        self.assertIn("38;5;245", out)  # neutral gray
+        self.assertNotIn("38;5;35", out)  # type colors are not used
+
+    def test_color_by_heat_marks_hot_modules(self):
+        data = sample_archmap()  # worker is in+out=2, source/sink=1
+        out = geometry_render(data, "engine", "grouped", color="always", color_by="heat")
+        self.assertIn("38;5;220", out)  # hot module (compute)
+        self.assertIn("38;5;245", out)  # low coupling (reference)
+
+    def test_rule_violations_use_assurance_color(self):
+        data = {
+            "schema": "archiscope/1.0",
+            "modules": {
+                "root": {"label": "R", "type": "root", "children": ["a", "b", "c"]},
+                "a": {"label": "甲", "type": "module", "parent": "root", "downstream": ["b"]},
+                "b": {"label": "乙", "type": "module", "parent": "root", "upstream": ["a"], "downstream": ["c"]},
+                "c": {"label": "丙", "type": "module", "parent": "root", "downstream": ["b"]},
+            },
+        }
+        out = geometry_render(data, "all", "grouped", color="always")
+        self.assertIn("38;5;162", out)  # assurance on the asymmetric edge
+
+    def test_neutral_modules_render_dashed(self):
+        data = sample_archmap()  # no feature declarations → unclassified
+        out = geometry_render(data, "engine", "grouped", color="never")
+        self.assertIn("╌", out)  # dashed frames
+
+
 class MultiColumnAlignmentTests(unittest.TestCase):
     @staticmethod
     def _char_at_display_column(line: str, column: int) -> str | None:

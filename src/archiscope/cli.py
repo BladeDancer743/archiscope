@@ -100,6 +100,14 @@ def main():
         default="default",
         help="Color theme (default: default; run 'archiscope list-themes')",
     )
+    render_cmd.add_argument(
+        "--color-by",
+        choices=["type", "feature", "heat"],
+        default="type",
+        help="Design-assistance frame coloring: type (structure), feature "
+        "(semantic responsibility family), heat (coupling); rule violations "
+        "always override with the assurance color",
+    )
     # list-strategies
     sub.add_parser("list-strategies", help="List all available render strategies")
 
@@ -203,6 +211,7 @@ def main():
                     args.strategy,
                     color=args.color or "auto",
                     theme=args.theme,
+                    color_by=args.color_by,
                 )
             else:
                 output = render_terminal(

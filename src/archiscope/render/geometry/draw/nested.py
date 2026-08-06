@@ -3,18 +3,39 @@
 All three strategies share the same underlying geometry: boxes inside boxes.
 """
 
-from ...ansi import TYPE_COLOR, resolve_theme
+from ...ansi import TYPE_COLOR, heat_style, resolve_theme
 from ..correct.engine import correct
 from ..draw.grid import CharGrid, str_width
 from ..verify.rules import VerifyContext
 
 
 def _module_color(ctx: VerifyContext, mid: str) -> str | None:
-    """Frame color for one module: focus highlight wins, then type color."""
+    """Frame color for one module, in priority order: focus highlight, rule
+    violations (assurance), the selected design view (type/feature/heat),
+    and unclassified semantics (neutral gray in the type view)."""
     if mid == ctx.focus:
         return "focus"
+    if ctx.issues.get(mid):
+        return "assurance"
+    if ctx.color_by == "feature":
+        return ctx.feature_families.get(mid, "neutral")
+    if ctx.color_by == "heat":
+        return heat_style(ctx.degrees.get(mid, 0))
+    # The type view keeps the structural color; unclassified semantics are
+    # signalled by the dashed frame instead, so a mostly-unclassified
+    # archmap does not collapse to all-gray.
     module_type = ctx.modules.get(mid, {}).get("type", "module")
     return TYPE_COLOR.get(module_type)
+
+
+def _module_frame(ctx: VerifyContext, mid: str) -> str:
+    """Box-drawing style: dashed marks rule violations and (in the type
+    view) modules whose semantic role is still unclassified."""
+    if ctx.issues.get(mid):
+        return "dashed"
+    if ctx.color_by == "type" and ctx.feature_families.get(mid) == "neutral":
+        return "dashed"
+    return "single"
 
 
 def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
@@ -48,16 +69,14 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
         if member_count == 0:
             continue
 
-        # Frame color follows the group's single module type when the members
-        # share one (synthesized type-groups always do). Keeping the frame and
-        # its members on one color run means every row is a single ANSI
-        # segment — some terminal renderers mis-measure rows with three or
-        # more color switches (CJK-aware width bugs).
-        member_types = {modules.get(m, {}).get("type") for m in members}
-        if len(member_types) == 1:
-            group_color = TYPE_COLOR.get(next(iter(member_types)))
-        else:
-            group_color = "boundary"
+        # Frame color follows the members' *actual* rendered color when they
+        # share one (synthesized type-groups always do; an all-neutral group
+        # renders gray with dashed frames). Keeping the frame and its members
+        # on one color run means every row is a single ANSI segment — some
+        # terminal renderers mis-measure rows with three or more color
+        # switches (CJK-aware width bugs).
+        member_colors = {c for m in members if (c := _module_color(ctx, m))}
+        group_color = next(iter(member_colors)) if len(member_colors) == 1 else "boundary"
 
         # Determine group box size
         member_w = max(str_width(modules.get(m, {}).get("label", m)) for m in members)
@@ -87,7 +106,7 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
             my = y + 2 + row * 6
             ml = modules.get(mid, {}).get("label", mid)
             color = _module_color(ctx, mid)
-            mr = grid.draw_rect(mx, my, box_w, 4, color=color)
+            mr = grid.draw_rect(mx, my, box_w, 4, style=_module_frame(ctx, mid), color=color)
             grid.draw_label(mx + 1, my + 2, box_w - 2, ml, color=color)
             boxes[mid] = mr
 
@@ -101,18 +120,17 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
             r1, r2 = boxes[fr], boxes[to]
             mid_y1 = r1.y + r1.h // 2
             r2.y + r2.h // 2
+            edge_color = (
+                "assurance" if (fr, to) in ctx.edge_issues else _module_color(ctx, fr)
+            )
             if abs(r1.x - r2.x) < 10:
                 # Vertical edge
-                grid.draw_arrow_v(
-                    r1.x + r1.w // 2, r1.bottom, r2.y, color=_module_color(ctx, fr)
-                )
+                grid.draw_arrow_v(r1.x + r1.w // 2, r1.bottom, r2.y, color=edge_color)
             else:
                 # Horizontal edge
-                grid.draw_arrow_h(r1.right, r2.x, mid_y1, color=_module_color(ctx, fr))
+                grid.draw_arrow_h(r1.right, r2.x, mid_y1, color=edge_color)
                 if label:
-                    grid.put_str(
-                        r1.right + 2, mid_y1 - 1, label, color=_module_color(ctx, fr)
-                    )
+                    grid.put_str(r1.right + 2, mid_y1 - 1, label, color=edge_color)
             edge["line_cells"] = []
 
     # Run verify + correct. Only *declared* groups (from the archmap) are

@@ -6,7 +6,7 @@ Rows = producers (from modules), Columns = consumers (to modules).
 
 from typing import Mapping
 
-from ...ansi import resolve_theme
+from ...ansi import heat_style, resolve_theme
 from ..draw.grid import (
     BLOCK_DARK,
     BLOCK_DOT,
@@ -17,19 +17,6 @@ from ..draw.grid import (
     str_width,
 )
 from ..verify.rules import VerifyContext
-
-
-def _heat_color(count: int) -> str | None:
-    """Color key for a coupling level: hot cells stand out."""
-    if count >= 5:
-        return "assurance"
-    if count >= 3:
-        return "command"
-    if count >= 2:
-        return "compute"
-    if count >= 1:
-        return "reference"
-    return None
 
 
 def _colorize(value: str, key: str | None, palette: Mapping[str, str] | None) -> str:
@@ -97,7 +84,7 @@ def render_heat_matrix(ctx: VerifyContext) -> str:
                 ch = BLOCK_LIGHT * count
             else:
                 ch = BLOCK_DOT
-            row.append(pad_str(_colorize(ch, _heat_color(count), _palette(ctx)), col_w))
+            row.append(pad_str(_colorize(ch, heat_style(count), _palette(ctx)), col_w))
         lines.append("".join(row))
 
     # Hotspot ranking

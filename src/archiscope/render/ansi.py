@@ -343,6 +343,19 @@ def resolve_theme(name: str) -> Theme:
     return theme
 
 
+def heat_style(count: int) -> str | None:
+    """Style key for a coupling level: hot modules stand out."""
+    if count >= 5:
+        return "assurance"
+    if count >= 3:
+        return "command"
+    if count >= 2:
+        return "compute"
+    if count >= 1:
+        return "reference"
+    return None
+
+
 # Backward-compatible module-level exports — the default theme's tables.
 ANSI_COLORS = DEFAULT_COLORS
 TYPE_COLOR = DEFAULT_TYPE_COLORS

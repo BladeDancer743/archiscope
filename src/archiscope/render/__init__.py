@@ -7,12 +7,20 @@ from typing import Optional
 
 import yaml
 
+from ..semantics import SemanticError, resolve_module_feature
 from .ansi import color_enabled
 from .geometry.correct.engine import correct
 from .geometry.draw import RENDERERS
 from .geometry.draw.grid import CharGrid, Rect
 from .geometry.verify.engine import verify
-from .geometry.verify.rules import VerifyContext
+from .geometry.verify.rules import (
+    VerifyContext,
+    check_dead_edges,
+    check_deep_cycle,
+    check_edge_symmetry,
+    check_type_contract,
+    check_type_inversion,
+)
 from .terminal import (
     TerminalEdge,
     TerminalRenderError,
@@ -324,6 +332,7 @@ def geometry_render(
     strategy: str | None = None,
     color: str = "auto",
     theme: str = "default",
+    color_by: str = "type",
 ) -> str:
     """Render a geometric architecture view.
 
@@ -332,7 +341,11 @@ def geometry_render(
 
     ``color`` follows the same ``auto|always|never`` policy as the terminal
     overview; ``auto`` disables colors for non-TTY output. ``theme`` selects
-    the color scheme (see ``render.ansi.THEMES``).
+    the color scheme (see ``render.ansi.THEMES``). ``color_by`` chooses the
+    design-assistance coloring of module frames: ``type`` (structure),
+    ``feature`` (semantic responsibility family), or ``heat`` (coupling).
+    Semantic rule violations always override the frame/edge color with the
+    assurance color so architecture problems stand out.
     """
     modules = data.get("modules", {})
     actual = resolve_module_path(data, module_path)
@@ -373,6 +386,23 @@ def geometry_render(
     group_labels = {gname: str(gcfg.get("label", gname)) for gname, gcfg in group_configs.items()}
 
     terminal_w = 80
+
+    # Design-assistance semantics: feature families, coupling degrees and
+    # rule violations, computed once for the whole view scope.
+    feature_families: dict[str, str] = {}
+    for m in scope:
+        try:
+            decision = resolve_module_feature(data, m, None)
+            feature_families[m] = str(decision["family"])
+        except SemanticError:
+            feature_families[m] = "neutral"
+    degrees: dict[str, int] = {}
+    for e in edges:
+        degrees[e["from"]] = degrees.get(e["from"], 0) + 1
+        degrees[e["to"]] = degrees.get(e["to"], 0) + 1
+    issues: dict[str, list[str]] = {}
+    edge_issues: set[tuple[str, str]] = set()
+
     ctx = VerifyContext(
         grid=CharGrid(terminal_w, 40),
         boxes={},
@@ -384,7 +414,35 @@ def geometry_render(
         group_labels=group_labels,
         color=color_enabled(color),
         theme=theme,
+        color_by=color_by,
+        feature_families=feature_families,
+        degrees=degrees,
+        issues=issues,
+        edge_issues=edge_issues,
     )
+    for violation in (
+        check_dead_edges(ctx)
+        + check_deep_cycle(ctx)
+        + check_edge_symmetry(ctx)
+        + check_type_contract(ctx)
+        + check_type_inversion(ctx)
+    ):
+        subject = violation.subject
+        if violation.rule_id in ("S5_type_inversion", "S6_dead_edge"):
+            if subject in modules:
+                issues.setdefault(subject, [])
+                if violation.rule_id not in issues[subject]:
+                    issues[subject].append(violation.rule_id)
+        elif violation.rule_id == "S3_deep_cycle":
+            for part in subject.split("→"):
+                if part in modules:
+                    issues.setdefault(part, [])
+                    if violation.rule_id not in issues[part]:
+                        issues[part].append(violation.rule_id)
+        else:  # S1_asymmetric / S2_type_mismatch — edge-level
+            parts = subject.split("→")
+            if len(parts) == 2 and parts[0] in modules and parts[1] in modules:
+                edge_issues.add((parts[0], parts[1]))
 
     renderer = RENDERERS.get(effective_strategy)
     if renderer:

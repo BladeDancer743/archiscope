@@ -6,7 +6,7 @@ routing with per-gap lanes. Long edges pass through corridor rows in the
 intermediate columns, so lines never pierce boxes.
 """
 
-from ...ansi import TYPE_COLOR, resolve_theme
+from ...ansi import TYPE_COLOR, heat_style, resolve_theme
 from ..correct.engine import correct
 from ..verify.rules import VerifyContext
 from .grid import ARROW_RIGHT, CharGrid, split_lines, str_width, truncate_str
@@ -80,6 +80,32 @@ def order_within_layers(
         sweep(layers[1:], neighbors_in)  # left-to-right
         sweep(layers[-2::-1], neighbors_out)  # right-to-left
     return layers
+
+
+def _module_color(ctx: VerifyContext, mid: str) -> str | None:
+    """Frame color: focus, then rule violations (assurance), then the
+    selected design view (type/feature/heat); unclassified semantics stay
+    gray in the type view."""
+    if mid == ctx.focus:
+        return "focus"
+    if ctx.issues.get(mid):
+        return "assurance"
+    if ctx.color_by == "feature":
+        return ctx.feature_families.get(mid, "neutral")
+    if ctx.color_by == "heat":
+        return heat_style(ctx.degrees.get(mid, 0))
+    # The type view keeps the structural color; unclassified semantics are
+    # signalled by the dashed frame instead.
+    return TYPE_COLOR.get(ctx.modules.get(mid, {}).get("type", "module"))
+
+
+def _module_frame(ctx: VerifyContext, mid: str) -> str:
+    """Box style: dashed marks violations and unclassified semantics."""
+    if ctx.issues.get(mid):
+        return "dashed"
+    if ctx.color_by == "type" and ctx.feature_families.get(mid) == "neutral":
+        return "dashed"
+    return "single"
 
 
 def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
@@ -162,8 +188,10 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
         y = 1 + (max_h - col_h[ci]) // 2
         for n, lines in entries:
             h = len(lines) + 2
-            box_style = "double" if n == focus else "single"
-            color = "focus" if n == focus else TYPE_COLOR.get(modules[n].get("type", "module"))
+            box_style = (
+                "double" if n == focus else _module_frame(ctx, n)
+            )
+            color = _module_color(ctx, n)
             rect = grid.draw_rect(col_x[ci], y, w, h, style=box_style, color=color)
             for r, line in enumerate(lines):
                 grid.draw_label(col_x[ci] + 1, y + 1 + r, w - 2, line, color=color)
@@ -181,8 +209,10 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
 
     for e in sorted(edges, key=lambda e: abs(col_index[e["to"]] - col_index[e["from"]])):
         fr, to = e["from"], e["to"]
-        edge_color = "focus" if fr == focus else TYPE_COLOR.get(
-            modules[fr].get("type", "module")
+        edge_color = (
+            "assurance"
+            if (fr, to) in ctx.edge_issues
+            else _module_color(ctx, fr)
         )
         c1, c2 = col_index[fr], col_index[to]
         r1, r2 = boxes[fr], boxes[to]

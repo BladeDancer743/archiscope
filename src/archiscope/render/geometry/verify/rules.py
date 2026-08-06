@@ -39,6 +39,13 @@ class VerifyContext:
     group_labels: dict[str, str] = field(default_factory=dict)
     color: bool = False  # render ANSI colors via grid.render_ansi
     theme: str = "default"  # color theme name (see render.ansi.THEMES)
+    # Design-assistance semantics: how module frames are colored and what
+    # issues to flag, computed by geometry_render from the archmap.
+    color_by: str = "type"  # "type" | "feature" | "heat"
+    feature_families: dict[str, str] = field(default_factory=dict)  # path → family style key
+    degrees: dict[str, int] = field(default_factory=dict)  # path → max(in, out) coupling
+    issues: dict[str, list[str]] = field(default_factory=dict)  # path → rule ids
+    edge_issues: set[tuple[str, str]] = field(default_factory=set)  # (from, to) rule violations
 
 
 # ═══════════════════════════════════════════════════════════
