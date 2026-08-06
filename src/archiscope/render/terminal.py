@@ -1525,90 +1525,40 @@ def _nested_engine_box(
         title_lines = [title_semantic, _Text.plain(label)]
     else:
         title_lines = [title]
-    def child_block(child: str, max_w: int) -> tuple[list[_Text], int, int]:
-        """Block lines, width and label-line count for one child.
-
-        The width adapts to the label (no silent ellipsis); labels wider
-        than the frame wrap onto two lines.
-        """
+    def child_block(child: str) -> tuple[list[_Text], int]:
+        """Block lines and width for one child — the label is always
+        complete on a single line; the block width is label plus borders.
+        Rows pack greedily, so wide blocks stand alone and narrow ones
+        share a row; nothing ever wraps or truncates."""
         label = data["modules"][child].get("label", child)
-        # Hard-cut long labels at display width (split_lines only splits on
-        # word boundaries). For two lines, balance the cut so the remainder
-        # fits on its own row instead of leaving a one-character orphan.
-        parts: list[str] = []
-        total_w = str_width(label)
-        line_count = max(1, (total_w + max_w - 1) // max_w)
-        if line_count == 2:
-            best = None
-            prefix_w = 0
-            for character in label:
-                cw = char_width(character)
-                if prefix_w + cw > max_w:
-                    break
-                remaining_w = total_w - prefix_w - cw
-                # the remainder must be at least two CJK cells so the
-                # second line never holds a one-character orphan
-                if remaining_w <= max_w and remaining_w >= 4:
-                    best = prefix_w + cw
-                prefix_w += cw
-            if best:
-                cut = truncate_str(label, best, suffix="")
-                parts = [cut, label[len(cut) :]]
-            else:
-                # no balanced cut reaches both rows (e.g. wide labels with
-                # odd cell widths) — hard-cut greedily instead
-                remaining = label
-                while str_width(remaining) > max_w:
-                    cut = truncate_str(remaining, max_w, suffix="")
-                    parts.append(cut)
-                    remaining = remaining[len(cut) :]
-                if remaining:
-                    parts.append(remaining)
-        elif line_count > 2:
-            remaining = label
-            while str_width(remaining) > max_w:
-                cut = truncate_str(remaining, max_w, suffix="")
-                parts.append(cut)
-                remaining = remaining[len(cut) :]
-            if remaining:
-                parts.append(remaining)
-        else:
-            parts = [label]
-        block_w = min(max(str_width(part) for part in parts) + 2, max_w + 2)
+        block_w = str_width(label) + 2
         inner = block_w - 2
-
-        def padded(part: str) -> str:
-            # Display-width padding: str.ljust pads by character count, which
-            # over-widens CJK labels.
-            return part + " " * max(0, inner - str_width(part))
-
         if charset == "ascii":
-            lines = [
+            return [
                 _Text.plain("+" + "-" * inner + "+"),
-                *(_Text.plain("|" + padded(part) + "|") for part in parts),
+                _Text.plain("|" + label + "|"),
                 _Text.plain("+" + "-" * inner + "+"),
-            ]
-        else:
-            lines = [
-                _Text.plain("┌" + "─" * inner + "┐"),
-                *(_Text.plain("│" + padded(part) + "│") for part in parts),
-                _Text.plain("└" + "─" * inner + "┘"),
-            ]
-        return lines, block_w, len(parts)
+            ], block_w
+        return [
+            _Text.plain("┌" + "─" * inner + "┐"),
+            _Text.plain("│" + label + "│"),
+            _Text.plain("└" + "─" * inner + "┘"),
+        ], block_w
 
-    # Two blocks per row: keeps the frame compact for many-children engines
-    # (an 11-child layer otherwise grows to 11 stacked rows). Wide labels
-    # wrap onto two lines inside their block.
-    per_row = 2
-    child_rows = [
-        children[index : index + per_row]
-        for index in range(0, len(children), per_row)
-    ] or [[]]
-    # Two blocks per row: each block adds 2 border cells and the inter-block
-    # arrow adds 2 more, so the label budget is (inner - 2*2 - 2) // 2.
-    # Budgeting (inner - 4) // 2 overflowed by the borders and the arrow,
-    # silently truncating the right block.
-    max_label_w = max(1, (inner_width - 6) // 2)
+    # Greedy packing: as many blocks as fit on a row, block width = label
+    # + borders. Wide blocks take their own row; nothing wraps.
+    child_rows: list[list[str]] = []
+    current: list[str] = []
+    current_w = 0
+    for child in children:
+        _, block_w = child_block(child)
+        if current and current_w + block_w + 1 > inner_width:
+            child_rows.append(current)
+            current, current_w = [], 0
+        current.append(child)
+        current_w += block_w + 1
+    if current:
+        child_rows.append(current)
 
     # top frame + title row(s)
     if charset == "ascii":
@@ -1626,24 +1576,18 @@ def _nested_engine_box(
     block_rows: dict[str, int] = {}
     used_rows = 1 + len(title_lines)
     for row_index, row in enumerate(child_rows):
-        blocks = [child_block(child, max_label_w) for child in row]
-        row_h = max(block[2] for block in blocks)  # tallest label count
-        block_h = row_h + 2
-        for sub_line in range(block_h):
+        blocks = [child_block(child) for child in row]
+        for sub_line in range(3):
             cells: list[_Text] = []
             for index, child in enumerate(row):
-                block_lines, block_w, label_lines = blocks[index]
+                block_lines, block_w = blocks[index]
                 if index:
                     cells.append(
                         _Text.plain("─▶")
                         if sub_line == 1 and (row[index - 1], child) in child_edges
                         else _Text.plain("  ")
                     )
-                cells.append(
-                    block_lines[sub_line]
-                    if sub_line < len(block_lines)
-                    else _Text.plain(" " * block_w)
-                )
+                cells.append(block_lines[sub_line])
             content = _Text.plain("")
             for cell in cells:
                 content += cell
@@ -1652,9 +1596,8 @@ def _nested_engine_box(
             else:
                 lines.append(_Text.plain("┃") + content.pad(inner_width) + _Text.plain("┃"))
         for index, child in enumerate(row):
-            block_lines, _, _ = blocks[index]
             block_rows[child] = used_rows + 1  # label line of this block
-        used_rows += block_h
+        used_rows += 3
         if row_index < len(child_rows) - 1:
             # a blank row between block rows keeps the blocks distinct
             if charset == "ascii":
@@ -1706,7 +1649,10 @@ def _render_chain_row(
         for child in modules[path].get("children") or []
         if child in modules
     ]
-    child_need = 2 * max(child_widths, default=0) + 8
+    max_child = max(child_widths, default=0)
+    # Two columns are preferred, but the widest child must always fit on
+    # its own row (label + borders).
+    child_need = max(2 * max_child + 8, max_child + 2)
     available = max(20, (width - 4 - gaps) // total_boxes)
     box_w = min(
         max(label_w + semantic_prefix + 6, child_need, 20),
