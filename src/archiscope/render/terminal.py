@@ -1763,7 +1763,14 @@ def _render_chain_row(
                 row += _Text.plain(gap)
             for box_index, path in enumerate(layer):
                 box = engine_boxes[layer_index][box_index]
-                row += box[line_index].pad(box_w) if line_index < len(box) else _Text.plain(" " * box_w)
+                if line_index == height - 1:
+                    # bottom borders align on the final row so no frame
+                    # appears to dangle above empty space
+                    row += box[-1].pad(box_w)
+                elif line_index < len(box) - 1:
+                    row += box[line_index].pad(box_w)
+                else:
+                    row += _Text.plain(" " * box_w)
         lines.append(row)
 
     # Cross-engine child links, drawn in the short form: a vertical drop
