@@ -5,16 +5,21 @@ The diagram keeps the visual hierarchy separate from the exact topology:
 * Explicit three-way groups communicate author-defined architectural roles.
 * Ungrouped graphs use topology-neutral INBOUND / HUB / OUTBOUND labels.
 * Numbered chip labels stay compact and CJK-safe.
+* The zone connectors aggregate the *real* cross-zone edges (with xN counts
+  and bidirectional markers), so the bus shows actual data flow instead of
+  a template arrow.
 * DATA FLOW names both endpoints of every real edge, avoiding a separate
   numeric legend while keeping dense graphs exact.
 * Isolated modules remain visible on a dotted SUPPORT rail.
 """
 
+from collections import Counter
+
 from ..verify.rules import VerifyContext
 from .grid import pad_str, str_width, truncate_str
 from .layout import assign_layers
 
-ZONE_GAP = 3
+ZONE_GAP = 9  # width reserved for the cross-zone bus connectors
 MIN_ZONE_WIDTH = 18
 
 
@@ -58,10 +63,11 @@ def render_blueprint(ctx: VerifyContext) -> str:
     ]
 
     signal_row = 1 + body_h // 2
+    zone_bus = _zone_bus(zone_nodes, edges)
     output = []
     for row in range(body_h + 2):
-        to_hub = "══▶" if zone_nodes[0] and row == signal_row else " " * ZONE_GAP
-        to_outbound = "══▶" if zone_nodes[2] and row == signal_row else " " * ZONE_GAP
+        to_hub = zone_bus["in->hub"] if row == signal_row else " " * ZONE_GAP
+        to_outbound = zone_bus["hub->out"] if row == signal_row else " " * ZONE_GAP
         output.append(blocks[0][row] + to_hub + blocks[1][row] + to_outbound + blocks[2][row])
 
     output.append("")
@@ -78,6 +84,49 @@ def render_blueprint(ctx: VerifyContext) -> str:
         output.extend(_pack_segments("  · ", segments, terminal_w, "   ·   "))
 
     return "\n".join(output).rstrip()
+
+
+def _zone_bus(
+    zone_nodes: list[list[str]],
+    edges: list[dict],
+) -> dict[str, str]:
+    """Aggregate the real cross-zone edges into bus connectors.
+
+    Returns the fixed-width connector text for ``in->hub`` and ``hub->out``
+    gaps: forward arrows with xN counts, back arrows for reverse flow, and
+    a bidirectional marker when both directions exist. Blank when the zones
+    are empty or no edge crosses the gap.
+    """
+    zone_of: dict[str, int] = {}
+    for node in zone_nodes[0]:
+        zone_of[node] = 0  # INBOUND
+    for node in zone_nodes[1]:
+        zone_of[node] = 1  # HUB
+    for node in zone_nodes[2]:
+        zone_of[node] = 2  # OUTBOUND
+
+    counts: Counter[tuple[int, int]] = Counter()
+    for edge in edges:
+        if edge["from"] in zone_of and edge["to"] in zone_of:
+            counts[(zone_of[edge["from"]], zone_of[edge["to"]])] += edge.get("count", 1)
+
+    def connector(fr_zone: int, to_zone: int) -> str:
+        forward = counts.get((fr_zone, to_zone), 0)
+        backward = counts.get((to_zone, fr_zone), 0)
+        fwd = f"═x{forward}═▶" if forward > 1 else "════▶"
+        back = f"◀═x{backward}═" if backward > 1 else "◀════"
+        if forward and backward:
+            return f"◀x{backward}╡x{forward}▶"[:ZONE_GAP]
+        if forward:
+            return fwd.ljust(ZONE_GAP, "═")
+        if backward:
+            return back.rjust(ZONE_GAP, "═")
+        return " " * ZONE_GAP
+
+    return {
+        "in->hub": connector(0, 1) if zone_nodes[0] and zone_nodes[1] else " " * ZONE_GAP,
+        "hub->out": connector(1, 2) if zone_nodes[1] and zone_nodes[2] else " " * ZONE_GAP,
+    }
 
 
 def _explicit_zones(
