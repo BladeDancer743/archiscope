@@ -1533,23 +1533,24 @@ def _nested_engine_box(
         label = data["modules"][child].get("label", child)
         parts = split_lines(label, max_w) if str_width(label) > max_w else [label]
         block_w = min(max(str_width(part) for part in parts) + 2, max_w + 2)
+        inner = block_w - 2
+
+        def padded(part: str) -> str:
+            # Display-width padding: str.ljust pads by character count, which
+            # over-widens CJK labels.
+            return part + " " * max(0, inner - str_width(part))
+
         if charset == "ascii":
             lines = [
-                _Text.plain("+" + "-" * (block_w - 2) + "+"),
-                *(
-                    _Text.plain("|" + part.ljust(block_w - 2) + "|")
-                    for part in parts
-                ),
-                _Text.plain("+" + "-" * (block_w - 2) + "+"),
+                _Text.plain("+" + "-" * inner + "+"),
+                *(_Text.plain("|" + padded(part) + "|") for part in parts),
+                _Text.plain("+" + "-" * inner + "+"),
             ]
         else:
             lines = [
-                _Text.plain("┌" + "─" * (block_w - 2) + "┐"),
-                *(
-                    _Text.plain("│" + part.ljust(block_w - 2) + "│")
-                    for part in parts
-                ),
-                _Text.plain("└" + "─" * (block_w - 2) + "┘"),
+                _Text.plain("┌" + "─" * inner + "┐"),
+                *(_Text.plain("│" + padded(part) + "│") for part in parts),
+                _Text.plain("└" + "─" * inner + "┘"),
             ]
         return lines, block_w, len(parts)
 
