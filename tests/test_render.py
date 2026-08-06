@@ -443,7 +443,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("VERTICAL LAYERED BUS TOPOLOGY", output)
         self.assertIn("[DEP]", output)
         self.assertIn("->", output)  # chain-row arrow
-        self.assertIn("+------------+", output)
+        self.assertIn("+---------------------+", output)
         for unicode_glyph in "╔╗┏┓┌┐◇╌─┄▶◀●◆○▾·…→▼│┆↕":
             self.assertNotIn(unicode_glyph, output)
 

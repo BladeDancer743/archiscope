@@ -1441,9 +1441,10 @@ def _render_chain_row(
     edge_by_pair = {(edge.source, edge.target): edge for edge in edges}
     arrow_w = 3  # "─▶" plus one gap cell; custom-kind tags may overflow
     gaps = (len(chain_layers) - 1) * arrow_w + (total_boxes - len(chain_layers))
+    semantic_prefix = 9  # "● [FAMILY] " inside each frame
     box_w = min(
-        max(label_w + 6, 14),
-        max(14, (width - 4 - gaps) // total_boxes),
+        max(label_w + semantic_prefix + 6, 20),
+        max(20, (width - 4 - gaps) // total_boxes),
     )
     layer_boxes = [
         [
