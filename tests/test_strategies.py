@@ -25,7 +25,7 @@ class StrategyRegistryTests(unittest.TestCase):
     def test_readme_strategy_table_matches_registry(self):
         root = Path(__file__).resolve().parents[1]
         readme = (root / "README.md").read_text(encoding="utf-8")
-        section = readme.split("## 可用视图（16 种）", 1)[1].split("\n## ", 1)[0]
+        section = readme.split("## 可用视图（16 种专用策略）", 1)[1].split("\n## ", 1)[0]
         documented = set(re.findall(r"^\| `([^`]+)`", section, re.MULTILINE))
         self.assertEqual(documented, set(PUBLIC_STRATEGIES))
 

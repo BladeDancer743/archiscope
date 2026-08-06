@@ -1,6 +1,6 @@
 [project]
 name = "archiscope"
-version = "0.5.1"
+version = "0.6.0"
 description = "Portable architecture zoom lens for AI coding agents"
 readme = "README.md"
 license = "MIT"

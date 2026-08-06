@@ -51,3 +51,12 @@ def sample_archmap() -> dict:
             },
         },
     }
+
+
+def sample_archmap_with_custom_root() -> dict:
+    data = sample_archmap()
+    root = data["modules"].pop("root")
+    data["modules"]["platform"] = root
+    data["modules"]["engine"]["parent"] = "platform"
+    data["aliases"].update({"全景": "platform", "平台": "platform"})
+    return data

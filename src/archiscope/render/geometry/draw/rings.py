@@ -1,19 +1,11 @@
-"""Concentric rings renderer — onion_rings view.
-
-Layers from outside-in: external deps → wrapper modules → kernel modules.
-Rendered as concentric text rings using Unicode circles.
-"""
+"""Concentric rings renderer — dependency in-degree view."""
 
 from ..draw.grid import pad_str, str_width
 from ..verify.rules import VerifyContext
 
 
 def render_rings(ctx: VerifyContext) -> str:
-    """Render modules in concentric rings based on dependency distance.
-
-    Innermost ring = most depended-upon modules (kernel).
-    Outer ring = modules with no incoming edges (external deps).
-    """
+    """Render modules in concentric rings ranked by incoming dependency count."""
     modules = ctx.modules
     edges = ctx.edges
 
@@ -35,7 +27,11 @@ def render_rings(ctx: VerifyContext) -> str:
     per_ring = (n + rings - 1) // rings
 
     lines = []
-    ring_names = {0: "内核 (被依赖最多)", 1: "外围模块", 2: "外部接口"}
+    ring_names = {
+        0: "高入度 (被依赖最多)",
+        1: "中入度",
+        2: "低或零入度",
+    }
 
     for r in range(rings):
         start = r * per_ring

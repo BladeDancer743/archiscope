@@ -16,7 +16,7 @@ class InstallTests(unittest.TestCase):
                 self.assertTrue(_install_agent("codex"))
 
             target = root / ".codex" / "skills" / "archiscope" / "SKILL.md"
-            self.assertEqual(target.read_text(encoding="utf-8"), SKILL_CONTENT)
+            self.assertEqual(target.read_bytes(), SKILL_CONTENT.encode("utf-8"))
 
     def test_append_install_preserves_existing_content_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -45,8 +45,8 @@ class InstallTests(unittest.TestCase):
         for name, content in expected.items():
             with self.subTest(name=name):
                 self.assertEqual(
-                    (root / "agents" / name).read_text(encoding="utf-8"),
-                    content,
+                    (root / "agents" / name).read_bytes(),
+                    content.encode("utf-8"),
                 )
 
 

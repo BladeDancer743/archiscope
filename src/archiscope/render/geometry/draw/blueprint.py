@@ -2,7 +2,8 @@
 
 The diagram keeps the visual hierarchy separate from the exact topology:
 
-* CONTROL / CORE / PROCESS zones communicate architectural role.
+* Explicit three-way groups communicate author-defined architectural roles.
+* Ungrouped graphs use topology-neutral INBOUND / HUB / OUTBOUND labels.
 * Numbered chip labels stay compact and CJK-safe.
 * DATA FLOW names both endpoints of every real edge, avoiding a separate
   numeric legend while keeping dense graphs exact.
@@ -25,9 +26,15 @@ def render_blueprint(ctx: VerifyContext) -> str:
         return "No modules."
 
     edges = [edge for edge in ctx.edges if edge["from"] in modules and edge["to"] in modules]
-    control, core, process, support = _partition(nodes, edges, getattr(ctx, "focus", None))
+    explicit = _explicit_zones(ctx, nodes)
+    if explicit:
+        zone_titles, zone_nodes, support = explicit
+    else:
+        inbound, hub, outbound, support = _partition(nodes, edges, getattr(ctx, "focus", None))
+        zone_titles = ["INBOUND", "HUB", "OUTBOUND"]
+        zone_nodes = [inbound, [hub], outbound]
 
-    ordered = control + [core] + process + support
+    ordered = [node for members in zone_nodes for node in members] + support
     digits = max(2, len(str(len(ordered))))
     refs = {node: str(index).zfill(digits) for index, node in enumerate(ordered, start=1)}
 
@@ -39,23 +46,23 @@ def render_blueprint(ctx: VerifyContext) -> str:
     base = usable // 3
     zone_widths = (base, base, usable - base * 2)
 
-    control_rows = [_node_row(node, refs, modules) for node in control]
-    process_rows = [_node_row(node, refs, modules) for node in process]
-    core_rows = _core_rows(core, refs, modules, zone_widths[1] - 2)
-    body_h = max(3, len(control_rows), len(core_rows), len(process_rows))
+    inbound_rows = [_node_row(node, refs, modules) for node in zone_nodes[0]]
+    outbound_rows = [_node_row(node, refs, modules) for node in zone_nodes[2]]
+    hub_rows = _core_rows(zone_nodes[1], refs, modules, zone_widths[1] - 2)
+    body_h = max(3, len(inbound_rows), len(hub_rows), len(outbound_rows))
 
     blocks = [
-        _zone("CONTROL", control_rows, zone_widths[0], body_h),
-        _zone("CORE", core_rows, zone_widths[1], body_h),
-        _zone("PROCESS", process_rows, zone_widths[2], body_h),
+        _zone(zone_titles[0], inbound_rows, zone_widths[0], body_h),
+        _zone(zone_titles[1], hub_rows, zone_widths[1], body_h),
+        _zone(zone_titles[2], outbound_rows, zone_widths[2], body_h),
     ]
 
     signal_row = 1 + body_h // 2
     output = []
     for row in range(body_h + 2):
-        to_core = "══▶" if control and row == signal_row else " " * ZONE_GAP
-        to_process = "══▶" if process and row == signal_row else " " * ZONE_GAP
-        output.append(blocks[0][row] + to_core + blocks[1][row] + to_process + blocks[2][row])
+        to_hub = "══▶" if zone_nodes[0] and row == signal_row else " " * ZONE_GAP
+        to_outbound = "══▶" if zone_nodes[2] and row == signal_row else " " * ZONE_GAP
+        output.append(blocks[0][row] + to_hub + blocks[1][row] + to_outbound + blocks[2][row])
 
     output.append("")
     output.append(_rule_header("DATA FLOW / 实际数据流 ", terminal_w, "═"))
@@ -73,12 +80,37 @@ def render_blueprint(ctx: VerifyContext) -> str:
     return "\n".join(output).rstrip()
 
 
+def _explicit_zones(
+    ctx: VerifyContext,
+    nodes: list[str],
+) -> tuple[list[str], list[list[str]], list[str]] | None:
+    """Use three declared groups as semantic zones instead of graph inference."""
+    configured = [(name, members) for name, members in ctx.groups.items() if members]
+    if len(configured) != 3:
+        return None
+
+    available = set(nodes)
+    seen = set()
+    titles = []
+    zones = []
+    for name, members in configured:
+        zone = [node for node in members if node in available and node not in seen]
+        if not zone:
+            return None
+        seen.update(zone)
+        zones.append(zone)
+        titles.append(ctx.group_labels.get(name, name).upper())
+
+    support = [node for node in nodes if node not in seen]
+    return titles, zones, support
+
+
 def _partition(
     nodes: list[str],
     edges: list[dict],
     focus: str | None,
 ) -> tuple[list[str], str, list[str], list[str]]:
-    """Infer CONTROL / CORE / PROCESS / SUPPORT roles from graph position."""
+    """Infer topology-neutral inbound / hub / outbound / support positions."""
     position = {node: index for index, node in enumerate(nodes)}
     incoming = {node: [] for node in nodes}
     outgoing = {node: [] for node in nodes}
@@ -90,9 +122,9 @@ def _partition(
 
     connected = [node for node in nodes if incoming[node] or outgoing[node]]
     if focus in nodes:
-        core = focus
+        hub = focus
     elif connected:
-        core = max(
+        hub = max(
             connected,
             key=lambda node: (
                 len(incoming[node]) + len(outgoing[node]),
@@ -102,35 +134,35 @@ def _partition(
             ),
         )
     else:
-        core = nodes[0]
+        hub = nodes[0]
 
     layers = assign_layers(nodes, edges)
-    core_layer = layers.get(core, 0)
-    control = []
-    process = []
+    hub_layer = layers.get(hub, 0)
+    inbound = []
+    outbound = []
     support = []
 
     for node in nodes:
-        if node == core:
+        if node == hub:
             continue
         if not incoming[node] and not outgoing[node]:
             support.append(node)
             continue
 
-        layer = layers.get(node, core_layer)
-        if core in outgoing[node] or layer < core_layer:
-            control.append(node)
-        elif core in incoming[node] or layer > core_layer:
-            process.append(node)
+        layer = layers.get(node, hub_layer)
+        if hub in outgoing[node] or layer < hub_layer:
+            inbound.append(node)
+        elif hub in incoming[node] or layer > hub_layer:
+            outbound.append(node)
         elif outgoing[node] and not incoming[node]:
-            control.append(node)
+            inbound.append(node)
         else:
-            process.append(node)
+            outbound.append(node)
 
-    control.sort(key=lambda node: (layers.get(node, 0), position[node]))
-    process.sort(key=lambda node: (layers.get(node, 0), position[node]))
+    inbound.sort(key=lambda node: (layers.get(node, 0), position[node]))
+    outbound.sort(key=lambda node: (layers.get(node, 0), position[node]))
     support.sort(key=position.__getitem__)
-    return control, core, process, support
+    return inbound, hub, outbound, support
 
 
 def _node_row(node: str, refs: dict[str, str], modules: dict) -> str:
@@ -138,19 +170,26 @@ def _node_row(node: str, refs: dict[str, str], modules: dict) -> str:
 
 
 def _core_rows(
-    core: str,
+    cores: list[str],
     refs: dict[str, str],
     modules: dict,
     inner_width: int,
 ) -> list[str]:
-    """Draw the inferred center node as a double-framed chip."""
+    """Draw the center zone as one or more double-framed chips."""
     chip_w = max(12, inner_width - 2)
-    label = truncate_str(_node_row(core, refs, modules), chip_w - 2)
-    return [
-        " " + "╔" + "═" * (chip_w - 2) + "╗",
-        " " + "║" + pad_str(label, chip_w - 2, "center") + "║",
-        " " + "╚" + "═" * (chip_w - 2) + "╝",
-    ]
+    rows = []
+    for index, core in enumerate(cores):
+        if index:
+            rows.append("")
+        label = truncate_str(_node_row(core, refs, modules), chip_w - 2)
+        rows.extend(
+            [
+                " " + "╔" + "═" * (chip_w - 2) + "╗",
+                " " + "║" + pad_str(label, chip_w - 2, "center") + "║",
+                " " + "╚" + "═" * (chip_w - 2) + "╝",
+            ]
+        )
+    return rows
 
 
 def _zone(title: str, rows: list[str], width: int, body_h: int) -> list[str]:
