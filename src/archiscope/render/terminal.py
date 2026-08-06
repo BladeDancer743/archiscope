@@ -1103,8 +1103,9 @@ def _layer_box_rows(
         if len(chunk) == 1:
             label = data["modules"][chunk[0]].get("label", chunk[0])
             semantic_prefix = 12  # "● [FAMILY] " inside the frame
+            expansion = 4  # " ▾N" expandable marker
             box_width = min(
-                max(str_width(label) + semantic_prefix + 4, 20), width - 4
+                max(str_width(label) + semantic_prefix + expansion + 4, 20), width - 4
             )
         else:
             box_width = max(16, (width - gap * (len(chunk) - 1)) // len(chunk))
@@ -1554,7 +1555,15 @@ def _nested_engine_box(
                 cut = truncate_str(label, best, suffix="")
                 parts = [cut, label[len(cut) :]]
             else:
-                parts = [label]
+                # no balanced cut reaches both rows (e.g. wide labels with
+                # odd cell widths) — hard-cut greedily instead
+                remaining = label
+                while str_width(remaining) > max_w:
+                    cut = truncate_str(remaining, max_w, suffix="")
+                    parts.append(cut)
+                    remaining = remaining[len(cut) :]
+                if remaining:
+                    parts.append(remaining)
         elif line_count > 2:
             remaining = label
             while str_width(remaining) > max_w:
@@ -1595,7 +1604,11 @@ def _nested_engine_box(
         children[index : index + per_row]
         for index in range(0, len(children), per_row)
     ] or [[]]
-    max_label_w = max(1, (inner_width - 4) // 2)
+    # Two blocks per row: each block adds 2 border cells and the inter-block
+    # arrow adds 2 more, so the label budget is (inner - 2*2 - 2) // 2.
+    # Budgeting (inner - 4) // 2 overflowed by the borders and the arrow,
+    # silently truncating the right block.
+    max_label_w = max(1, (inner_width - 6) // 2)
 
     # top frame + title row(s)
     if charset == "ascii":
