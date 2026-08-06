@@ -1584,7 +1584,7 @@ def _nested_engine_box(
         )
     block_rows: dict[str, int] = {}
     used_rows = 1 + len(title_lines)
-    for row in child_rows:
+    for row_index, row in enumerate(child_rows):
         blocks = [child_block(child, max_label_w) for child in row]
         row_h = max(block[2] for block in blocks)  # tallest label count
         block_h = row_h + 2
@@ -1614,6 +1614,13 @@ def _nested_engine_box(
             block_lines, _, _ = blocks[index]
             block_rows[child] = used_rows + 1  # label line of this block
         used_rows += block_h
+        if row_index < len(child_rows) - 1:
+            # a blank row between block rows keeps the blocks distinct
+            if charset == "ascii":
+                lines.append(_Text.plain("|") + _Text.plain(" " * inner_width) + _Text.plain("|"))
+            else:
+                lines.append(_Text.plain("┃") + _Text.plain(" " * inner_width) + _Text.plain("┃"))
+            used_rows += 1
     if charset == "ascii":
         lines.append(_Text.plain("+" + "-" * inner_width + "+"))
     else:
