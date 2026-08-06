@@ -48,6 +48,17 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
         if member_count == 0:
             continue
 
+        # Frame color follows the group's single module type when the members
+        # share one (synthesized type-groups always do). Keeping the frame and
+        # its members on one color run means every row is a single ANSI
+        # segment — some terminal renderers mis-measure rows with three or
+        # more color switches (CJK-aware width bugs).
+        member_types = {modules.get(m, {}).get("type") for m in members}
+        if len(member_types) == 1:
+            group_color = TYPE_COLOR.get(next(iter(member_types)))
+        else:
+            group_color = "boundary"
+
         # Determine group box size
         member_w = max(str_width(modules.get(m, {}).get("label", m)) for m in members)
         box_w = member_w + 6
@@ -57,10 +68,15 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
         group_h = row_count * 6 + 4
 
         # Draw group box; the label goes one row inside the top border so
-        # the frame stays closed (G4_frame_closure).
+        # the frame stays closed (G4_frame_closure).  The label is anchored
+        # to the frame's center column, rounding up so odd-width labels sit
+        # consistently half a cell right instead of drifting left by one.
         box_style = "double" if style == "grouped" else "single"
-        gr = grid.draw_rect(2, y, group_w, group_h, style=box_style, color="boundary")
-        grid.draw_label(4, y + 1, group_w - 4, label, color="boundary")
+        gr = grid.draw_rect(2, y, group_w, group_h, style=box_style, color=group_color)
+        label_x = 2 + (group_w - str_width(label) + 1) // 2
+        grid.draw_label(
+            label_x, y + 1, group_w - label_x, label, align="left", color=group_color
+        )
         group_boxes[group_name] = gr
 
         # Draw members inside
@@ -87,12 +103,16 @@ def render_nested(ctx: VerifyContext, style: str = "grouped") -> str:
             r2.y + r2.h // 2
             if abs(r1.x - r2.x) < 10:
                 # Vertical edge
-                grid.draw_arrow_v(r1.x + r1.w // 2, r1.bottom, r2.y, color="edge")
+                grid.draw_arrow_v(
+                    r1.x + r1.w // 2, r1.bottom, r2.y, color=_module_color(ctx, fr)
+                )
             else:
                 # Horizontal edge
-                grid.draw_arrow_h(r1.right, r2.x, mid_y1, color="edge")
+                grid.draw_arrow_h(r1.right, r2.x, mid_y1, color=_module_color(ctx, fr))
                 if label:
-                    grid.put_str(r1.right + 2, mid_y1 - 1, label, color="edge")
+                    grid.put_str(
+                        r1.right + 2, mid_y1 - 1, label, color=_module_color(ctx, fr)
+                    )
             edge["line_cells"] = []
 
     # Run verify + correct. Only *declared* groups (from the archmap) are

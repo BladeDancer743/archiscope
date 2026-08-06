@@ -406,13 +406,22 @@ class CharGrid:
             for ch, style in pairs:
                 if ch == CONT:
                     continue  # tail half of a wide char, printed with its head
-                if style != current:
-                    code = color_map.get(style) if style else None
+                if ch == " " and current is not None:
+                    # Blank cells stay inside the current color run: merging
+                    # the gap into the segment halves the escape-sequence
+                    # churn (harmless visually — blank cells carry no ink)
+                    # and keeps short ANSI runs friendlier to terminal
+                    # renderers that mis-measure reset-then-space sequences.
+                    effective = current
+                else:
+                    effective = style
+                if effective != current:
+                    code = color_map.get(effective) if effective else None
                     if code:
                         parts.append(f"\x1b[{code}m")
                     elif current:
                         parts.append("\x1b[0m")
-                    current = style if code else None
+                    current = effective if code else None
                 parts.append(ch)
             if current:
                 parts.append("\x1b[0m")

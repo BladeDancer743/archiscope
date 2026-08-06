@@ -181,6 +181,9 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
 
     for e in sorted(edges, key=lambda e: abs(col_index[e["to"]] - col_index[e["from"]])):
         fr, to = e["from"], e["to"]
+        edge_color = "focus" if fr == focus else TYPE_COLOR.get(
+            modules[fr].get("type", "module")
+        )
         c1, c2 = col_index[fr], col_index[to]
         r1, r2 = boxes[fr], boxes[to]
         sy = r1.y + r1.h // 2
@@ -193,18 +196,18 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
             lane = left + 1 + (lane_used[c1 + 1] % max(1, right - left - 2))
             lane_used[c1 + 1] += 1
             for xx in range(r1.right, lane + 1):
-                grid.put(xx, sy, "─", "edge")
+                grid.put(xx, sy, "─", edge_color)
                 cells.append((xx, sy))
             lo, hi = sorted((sy, ty))
             for yy in range(lo, hi + 1):
-                grid.put(lane, yy, "│", "edge")
+                grid.put(lane, yy, "│", edge_color)
                 cells.append((lane, yy))
-            grid.put(lane, sy, "┐" if ty > sy else "┘", "edge")
-            grid.put(lane, ty, "└" if ty > sy else "┌", "edge")
+            grid.put(lane, sy, "┐" if ty > sy else "┘", edge_color)
+            grid.put(lane, ty, "└" if ty > sy else "┌", edge_color)
             for xx in range(r2.right + 1, lane):
-                grid.put(xx, ty, "─", "edge")
+                grid.put(xx, ty, "─", edge_color)
                 cells.append((xx, ty))
-            grid.put(r2.right, ty, "◀", "edge")
+            grid.put(r2.right, ty, "◀", edge_color)
         else:
             step = 1 if c2 > c1 else -1
             cur_y = sy
@@ -223,19 +226,19 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
                 x_from, x_to = (start_x, lane) if step == 1 else (lane, start_x)
                 for xx in range(min(x_from, x_to), max(x_from, x_to) + 1):
                     if grid.get(xx, cur_y) == " ":
-                        grid.put(xx, cur_y, "─", "edge")
+                        grid.put(xx, cur_y, "─", edge_color)
                     cells.append((xx, cur_y))
                 # vertical on the lane
                 if nxt_y != cur_y:
-                    grid.put(lane, cur_y, "┐" if step == 1 else "┌", "edge")
+                    grid.put(lane, cur_y, "┐" if step == 1 else "┌", edge_color)
                     lo, hi = sorted((cur_y, nxt_y))
                     for yy in range(lo + 1, hi):
-                        grid.put(lane, yy, "│", "edge")
+                        grid.put(lane, yy, "│", edge_color)
                         cells.append((lane, yy))
-                    grid.put(lane, nxt_y, "└" if nxt_y > cur_y else "┌", "edge")
+                    grid.put(lane, nxt_y, "└" if nxt_y > cur_y else "┌", edge_color)
                     if step == -1:
-                        grid.put(lane, cur_y, "┘" if nxt_y < cur_y else "┐", "edge")
-                        grid.put(lane, nxt_y, "└" if nxt_y < cur_y else "┌", "edge")
+                        grid.put(lane, cur_y, "┘" if nxt_y < cur_y else "┐", edge_color)
+                        grid.put(lane, nxt_y, "└" if nxt_y < cur_y else "┌", edge_color)
                 cur_y = nxt_y
                 # continue from the lane across the next column corridor
                 if not last:
@@ -245,27 +248,27 @@ def render_topology(ctx: VerifyContext, style: str = "flow") -> str:
                     # corridor: only draw across free cells (between boxes)
                     for xx in range(x_from, x_to + 1):
                         if grid.get(xx, cur_y) == " ":
-                            grid.put(xx, cur_y, "─", "edge")
+                            grid.put(xx, cur_y, "─", edge_color)
                         cells.append((xx, cur_y))
                     start_x = ncx + ncw if step == 1 else ncx - 1
                 else:
                     # final approach into the target box
                     if step == 1:
                         for xx in range(lane + 1, r2.x - 1):
-                            grid.put(xx, ty, "─", "edge")
+                            grid.put(xx, ty, "─", edge_color)
                             cells.append((xx, ty))
-                        grid.put(r2.x - 1, ty, ARROW_RIGHT, "edge")
+                        grid.put(r2.x - 1, ty, ARROW_RIGHT, edge_color)
                     else:
                         for xx in range(r2.right + 1, lane):
-                            grid.put(xx, ty, "─", "edge")
+                            grid.put(xx, ty, "─", edge_color)
                             cells.append((xx, ty))
-                        grid.put(r2.right, ty, "◀", "edge")
+                        grid.put(r2.right, ty, "◀", edge_color)
 
         e["line_cells"] = cells
         if style == "flow" and e.get("label"):
             marker = str(len(legend) + 1)
             mx, my = cells[len(cells) // 2] if cells else (0, 0)
-            grid.put(mx, my, marker, "edge")
+            grid.put(mx, my, marker, edge_color)
             legend.append(f"  {marker}. {e['label']}")
 
     # Verify + correct the finished geometry. Groups are not drawn in this

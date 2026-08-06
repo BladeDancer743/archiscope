@@ -140,6 +140,18 @@ class ColorRenderTests(unittest.TestCase):
         with self.assertRaises(TerminalRenderError):
             resolve_theme("no-such-theme")
 
+    def test_grouped_rows_use_at_most_two_color_segments(self):
+        """Rows with 3+ ANSI color switches mis-align in some terminal
+        renderers (CJK-aware width bugs); grouped rows must stay compact —
+        the group frame shares its members' color instead of alternating."""
+        import re
+
+        data = sample_archmap()
+        colored = geometry_render(data, "engine", "grouped", color="always")
+        for line in colored.splitlines():
+            segments = len(re.findall(r"\x1b\[(?:1;)?38;5;\d+m", line))
+            self.assertLessEqual(segments, 2, line[:80])
+
 
 class MultiColumnAlignmentTests(unittest.TestCase):
     @staticmethod
