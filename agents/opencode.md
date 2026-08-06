@@ -17,6 +17,26 @@ description: 项目架构放大镜。当用户要求「展开」「放大」「e
    - 只有显式 `--format mermaid` 才放进 `mermaid` 围栏代码块
 4. 末尾补 1-3 句小结：该模块的职责、上游给它什么、它产出给谁。依据 YAML 里的 `description` / `upstream` / `downstream`，没有的信息不要编造
 
+## 终端通道适配
+
+Agent 调用 CLI 时 stdout 是管道，`--color auto` 会按非 TTY 自动关色；需要彩色必须显式传参数。按宿主渲染通道选择：
+
+| 宿主 | 渲染通道 | 推荐参数 |
+|---|---|---|
+| Claude Code | rich 终端，ANSI 直通（已验证） | `--color always` |
+| Codex CLI | 终端 ANSI | `--color always` |
+| opencode | 终端 ANSI | `--color always` |
+| Cursor | VS Code 聊天面板，ANSI 支持良好，输出约 110 列 | `--color always --width 110` |
+| GitHub Copilot | 聊天面板窄，ANSI 渲染不稳 | `--color never --width 90`；用户要看图时用 `--format mermaid` |
+
+规则：
+
+- 每次 `render` 显式带上表参数（例如 `archiscope render all --color always`），不要依赖默认值
+- 输出放进普通围栏代码块，保留空格；ANSI 序列原样保留，宿主通道会决定是否上色
+- 宿主不渲染 ANSI 时用 `--color never`，标签 `[DEP]`、框型、实线/断线仍表达完整信息，无色不丢语义
+- 只有 `--format mermaid` 才放进 `mermaid` 围栏代码块
+- 中文 label 原样保留，不因通道差异翻译或替换
+
 ## 命令速查
 
 | 命令 | 用途 |
