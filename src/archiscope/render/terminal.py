@@ -1511,12 +1511,19 @@ def _nested_engine_box(
         if target in children
     }
     dot = "*" if charset == "ascii" else "●"
-    title = (
+    label = module.get("label", path)
+    title_semantic = (
         _Text.styled(dot, semantic.family)
         + _Text.plain(" ")
         + _Text.styled(f"[{semantic.token.upper()}]", semantic.family)
-        + _Text.plain(f" {module.get('label', path)}")
     )
+    title = title_semantic + _Text.plain(f" {label}")
+    # The title wraps onto its own label line when the semantic tag plus
+    # the label cannot share one row — never truncate it.
+    if title.width > inner_width:
+        title_lines = [title_semantic, _Text.plain(label)]
+    else:
+        title_lines = [title]
     def child_block(child: str, max_w: int) -> tuple[list[_Text], int, int]:
         """Block lines, width and label-line count for one child.
 
@@ -1562,19 +1569,21 @@ def _nested_engine_box(
     if current:
         child_rows.append(current)
 
-    # top frame + title row
+    # top frame + title row(s)
     if charset == "ascii":
-        lines = [
-            _Text.plain("+" + "-" * inner_width + "+"),
-            _Text.plain("|") + title.pad(inner_width) + _Text.plain("|"),
-        ]
+        lines = [_Text.plain("+" + "-" * inner_width + "+")]
+        lines.extend(
+            _Text.plain("|") + part.pad(inner_width) + _Text.plain("|")
+            for part in title_lines
+        )
     else:
-        lines = [
-            _Text.plain("┏" + "━" * inner_width + "┓"),
-            _Text.plain("┃") + title.pad(inner_width) + _Text.plain("┃"),
-        ]
+        lines = [_Text.plain("┏" + "━" * inner_width + "┓")]
+        lines.extend(
+            _Text.plain("┃") + part.pad(inner_width) + _Text.plain("┃")
+            for part in title_lines
+        )
     block_rows: dict[str, int] = {}
-    used_rows = 2
+    used_rows = 1 + len(title_lines)
     for row in child_rows:
         blocks = [child_block(child, max_label_w) for child in row]
         row_h = max(block[2] for block in blocks)  # tallest label count
